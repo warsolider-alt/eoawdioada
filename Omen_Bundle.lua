@@ -5155,6 +5155,8 @@ local KEY_VK = {
     ["ARROWUP"]=0x26,["ArrowUp"]=0x26,["ARROWDOWN"]=0x28,["ArrowDown"]=0x28,
     ["ARROWLEFT"]=0x25,["ArrowLeft"]=0x25,["ARROWRIGHT"]=0x27,["ArrowRight"]=0x27,
     ["ESCAPE"]=0x1B,["Escape"]=0x1B,
+    [";"]=0xBA,["="]=0xBB,[","]=0xBC,["-"]=0xBD,["."]=0xBE,["/"]=0xBF,
+    ["`"]=0xC0,["["]=0xDB,["\\"]=0xDC,["]"]=0xDD,["'"]=0xDE,
 }
 local function keyToVk(v)
     if type(v) == "number" then return v end
@@ -8074,8 +8076,15 @@ reg("aimbot", {
         State.aimbot = false
         -- Also clear Running: if the injected thread died from an error it never
         -- cleared it, and the re-entry guard would block the next toggle_on forever.
-        SharkAPI.InjectSafe("any", "_G.__ShadowAimbotActive = false _G.__ShadowAimbotRunning = false")
+        -- Fire into every known resource env so the flag is cleared even if "any" env differs
+        SharkAPI.InjectSafe("any", "_G.__ShadowAimbotActive = false; _G.__ShadowAimbotRunning = false")
+        _G.__ShadowAimbotActive = false
+        _G.__ShadowAimbotRunning = false
         if type(DisableAimbotHooks) == "function" then DisableAimbotHooks() end
+        -- Force-restore camera control in case hooks left it locked
+        if type(SetGameplayCamRelativeHeading) == "function" then
+            SetGameplayCamRelativeHeading(0.0)
+        end
         toast("info", "Aimbot", "Aimbot OFF")
     end,
 })
@@ -10126,9 +10135,7 @@ reg("hulkman", {
                                         holdingEntity = false
                                         ClearPedTasks(playerPed)
                                         DetachEntity(heldEntity, true, true)
-                                        local playerCoords = GetEntityCoords(playerPed)
-                                        SetEntityCoords(heldEntity, playerCoords.x, playerCoords.y, playerCoords.z - 1, false, false, false, false)
-                                        SetEntityHeading(heldEntity, GetEntityHeading(playerPed))
+                                        ApplyForceToEntity(heldEntity, 1, direction.x * 65, direction.y * 65, direction.z * 65, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
                                     end
                                 end
                             end
@@ -11768,7 +11775,7 @@ reg("stealinventory", { click = function()
         toast("success","Server","Robbing player")
     elseif GetResourceState("ox_inventory") == "started" then
         toast("info","Server","Stealing nearby inventory...")
-        SharkAPI.InjectSafe("any", [[
+        SharkAPI.InjectSafe("ox_inventory", [[
             local function GetClosestPlayer()
                 local cp, cd = -1, 999; local myPed = PlayerPedId(); local myC = GetEntityCoords(myPed)
                 for _, pid in ipairs(GetActivePlayers() or {}) do
@@ -11781,7 +11788,9 @@ reg("stealinventory", { click = function()
                 return cp, cd
             end
             local cp, dist = GetClosestPlayer()
-            if cp ~= -1 and dist <= 3.0 then TriggerEvent('ox_inventory:openInventory', 'otherplayer', GetPlayerServerId(cp)) end
+            if cp ~= -1 and dist <= 5.0 then
+                TriggerEvent('ox_inventory:openInventory', 'otherplayer', GetPlayerServerId(cp))
+            end
         ]])
     else
         toast("failure","Server","No supported inventory resource")
