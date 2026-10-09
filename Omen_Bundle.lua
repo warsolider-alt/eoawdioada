@@ -6663,7 +6663,10 @@ reg("antifire", {
             StopEntityFire(ped)
         end)
     end,
-    toggle_off = function() stopTick("antifire") end,
+    toggle_off = function()
+        stopTick("antifire")
+        SetEntityProofs(PlayerPedId(), false, false, false, false, false, false, 0, false)
+    end,
 })
 reg("antitaze", {
     toggle_on = function()
@@ -6677,7 +6680,12 @@ reg("antitaze", {
             SetPedCanBeKnockedOffVehicle(ped, 1)
         end)
     end,
-    toggle_off = function() stopTick("antitaze") end,
+    toggle_off = function()
+        stopTick("antitaze")
+        local ped = PlayerPedId()
+        SetPedCanRagdollFromPlayerImpact(ped, true)
+        SetPedCanBeKnockedOffVehicle(ped, 0)
+    end,
 })
 reg("anticuff", {
     toggle_on = function()
@@ -8889,7 +8897,10 @@ reg("antiStealthKill", {
             SetPedConfigFlag(PlayerPedId(), 275, true)  
         end)
     end,
-    toggle_off = function() stopTick("antiSK") end,
+    toggle_off = function()
+        stopTick("antiSK")
+        SetPedConfigFlag(PlayerPedId(), 275, false)
+    end,
 })
 local function everyOther()
     local out = {}
@@ -10529,6 +10540,7 @@ reg("desyncNoclip", {
     end,
     toggle_off = function()
         Omen.State.desyncNoclip = false
+        _G.DysncNoClipActive = false
         SharkAPI.InjectSafe("any", [[ if DysncNoClipActive ~= nil then DysncNoClipActive = false end ]])
         if DisableNoclipHooks then DisableNoclipHooks() end
     end,
@@ -11101,6 +11113,7 @@ reg("noragdoll", {
         Omen.State.noragdoll = false
         _G.__OmenNoRagdoll = false
         SharkAPI.InjectSafe("any", [[ _G.__OmenNoRagdoll = false ]])
+        SetPedCanRagdoll(PlayerPedId(), true)
     end,
 })
 reg("antiAfk", {
