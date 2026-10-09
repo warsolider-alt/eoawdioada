@@ -8320,7 +8320,7 @@ reg("fov_ring", {
     toggle_on  = function() State.fov_ring = true;  startTick("fov_ring", 0, Omen.__fovRingTick) end,
     toggle_off = function() State.fov_ring = false; if not State.fov_visible then stopTick("fov_ring") end end,
 })
-reg("fov_size",    { slide = function(v) State.fov_size    = v end })
+reg("fov_size",    { slide = function(v) State.fov_size = v; if State.__aim then State.__aim.fov = tonumber(v) or 10 end; rebuildAimbotCfg() end })
 reg("fov_opacity", { slide = function(v) State.fov_opacity = v end })
 reg("crosshair", {
     toggle_on = function()
@@ -9630,7 +9630,7 @@ reg("giveitem_auto", { click = function()
         -- TFB (Tfb V5): hax_drugprocessing uses the same unpackItem RPC. gag ox_lib notify first.
         if fired<cap and gs('hax_drugprocessing') then
             if GetResourceState('ox_lib') == 'started' then
-                SendNUIMessage = function(data) if type(data) == 'table' and data.action == 'notify' then return end return SendNUIMessage(data) end
+                local _origSNM = SendNUIMessage; SendNUIMessage = function(data) if type(data) == 'table' and data.action == 'notify' then return end return _origSNM(data) end
             end
             TriggerServerEvent('hax_process:unpackItem','cash',iname,count,'qs','qs'); fired=fired+1
         end
@@ -12246,10 +12246,19 @@ reg("antiTxBring", {
 reg("bypassSafezones", {
     toggle_on = function()
         Omen.State.bypassSafezones = true
-        startTick("bypassSafezones", 400, function()
+        startTick("bypassSafezones", 0, function()
             if not Omen.State.bypassSafezones then stopTick("bypassSafezones"); return end
+            local ped = PlayerPedId()
             NetworkSetFriendlyFireOption(true)
-            SetCanAttackFriendly(PlayerPedId(), true, false)
+            SetCanAttackFriendly(ped, true, false)
+            SetPedCanSwitchWeapon(ped, true)
+            if type(DisablePlayerFiring) == "function" then
+                EnableControlAction(0, 24, true)
+                EnableControlAction(0, 25, true)
+                EnableControlAction(0, 257, true)
+                EnableControlAction(0, 45, true)
+            end
+            SetPedConfigFlag(ped, 35, false)
         end)
         toast("success","Anti-Admin","Bypass Safezones ON")
     end,
