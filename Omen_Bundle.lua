@@ -7175,6 +7175,7 @@ reg("megaweapon", {
         Omen.State.megaweapon = false
         stopTick("megaweapon")
         if has("EditWeaponSize") then SK.EditWeaponSize(1.0) end
+        _G.__OmenMegaWep = false
         SharkAPI.InjectSafe("any", [[ _G.__OmenMegaWep = false ]])
         if _G.__MegaWepSpoofedByUs and DisableSpoofWeapon then _G.__MegaWepSpoofedByUs = false; DisableSpoofWeapon() end
         toast("info", "Weapons", "Mega Weapon off")
@@ -7438,6 +7439,7 @@ reg("megabat", {
     end,
     toggle_off = function()
         if has("EditWeaponSize") then SK.EditWeaponSize(1.0) end
+        _G.__OmenMegaBat = false
         SharkAPI.InjectSafe("any", [[ _G.__OmenMegaBat = false ]])
         if _G.__MegaBatSpoofedByUs and DisableSpoofWeapon then _G.__MegaBatSpoofedByUs = false; DisableSpoofWeapon() end
         toast("info", "Weapons", "Mega Bat off")
@@ -7927,6 +7929,7 @@ reg("rage", {
     end,
     toggle_off = function()
         State.rage = false
+        _G.__ShadowAimbotRage = false
         SharkAPI.InjectSafe("any", "_G.__ShadowAimbotRage = false")
         toast("info", "Aimbot", "Rage OFF")
     end,
@@ -9016,6 +9019,7 @@ reg("pap", {
         State.__pap = false
         State.packapunch = false
         SetPlayerWeaponDamageModifier(PlayerId(), 1.0)
+        _G.__OmenPap = false
         SharkAPI.InjectSafe("any", [[ _G.__OmenPap = false ]])
         -- turn off features we auto-enabled
         if _G.__PapOwnedInfammo and Omen.Features.infammo and Omen.Features.infammo.toggle_off then State.infammo=false; _G.__PapOwnedInfammo=nil; Omen.Features.infammo.toggle_off() end
@@ -9068,6 +9072,7 @@ reg("superpunch", {
         if type(SharkAPI.SyncTree) == "table" and type(SharkAPI.SyncTree.SpoofServerWeapon) == "function" then
             SharkAPI.SyncTree.SpoofServerWeapon(0)
         end
+        _G.__SuperPunchInject = false
         if GetResourceState("ReaperV4") == "started" then
             SharkAPI.InjectSafe("any", [[ _G.__SuperPunchInject = false ]])
         end
@@ -10646,8 +10651,7 @@ reg("doppleganger", {
     end,
     toggle_off = function()
         Omen.State.doppleganger = false
-        -- stop the randomizer AND restore the original appearance (components + props)
-        -- that we snapshot when it turned on, so turning it off actually reverts.
+        _G.__doppelRunning = false
         SharkAPI.InjectSafe("any", [[
             _G.__doppelRunning = false
             if _G.__doppelOrig then
@@ -11095,6 +11099,7 @@ reg("noragdoll", {
     end,
     toggle_off = function()
         Omen.State.noragdoll = false
+        _G.__OmenNoRagdoll = false
         SharkAPI.InjectSafe("any", [[ _G.__OmenNoRagdoll = false ]])
     end,
 })
@@ -12596,6 +12601,7 @@ reg("reaperv4_full", {
     end,
     toggle_off = function()
         State.reaperv4_full = false
+        _G.__OmenReaperFullOn = false
         SharkAPI.InjectSafe("any", [[ _G.__OmenReaperFullOn = false ]])
         toast("info","AC Bypass","Reaper full bypass off")
     end,
