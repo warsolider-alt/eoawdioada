@@ -6605,6 +6605,7 @@ reg("lasereyes", {
     end,
     toggle_off = function()
         State.lasereyes = false
+        _G.__LaserEyesActive = false
         SharkAPI.InjectSafe("any", [[ _G.__LaserEyesActive = false ]])
         if not _G.__LaserEyesPrevSpoof and not State.spoofweapon and DisableSpoofWeapon then
             DisableSpoofWeapon(); _G.spoofWeaponEnabled = false
@@ -6633,9 +6634,23 @@ reg("godmode", {
     toggle_off = function()
         Omen.State.godmode = false
         stopTick("godmode")
+        _G.ShadowGodmodeHooks = false
         DisableGodmodeHooks()
-        SetPlayerInvincible(PlayerId(), false)
-        SetEntityProofs(PlayerPedId(), false, false, false, false, false, false, 0, false)
+        local pid = PlayerId()
+        local ped = PlayerPedId()
+        SetPlayerInvincible(pid, false)
+        SetEntityProofs(ped, false, false, false, false, false, false, 0, false)
+        SetEntityCanBeDamaged(ped, true)
+        SetEntityCanBeDamagedByRelationshipGroup(ped, true, 0)
+        local cleanCount = 0
+        startTick("godmode_cleanup", 0, function()
+            cleanCount = cleanCount + 1
+            if cleanCount > 30 then stopTick("godmode_cleanup"); return end
+            local p = PlayerPedId()
+            SetPlayerInvincible(PlayerId(), false)
+            SetEntityProofs(p, false, false, false, false, false, false, 0, false)
+            SetEntityCanBeDamaged(p, true)
+        end)
         toast("info", "Omen", "Godmode OFF")
     end,
 })
@@ -6912,6 +6927,11 @@ reg("bubbleV2", {
         _G.__OmenSelfConfigWrite = true
         SetPedConfigFlag(p, 423, false)
         _G.__OmenSelfConfigWrite = false
+        if not Omen.State.godmode then
+            DisableGodmodeHooks()
+            SetPlayerInvincible(PlayerId(), false)
+            SetEntityProofs(p, false, false, false, false, false, false, 0, false)
+        end
         toast("info", "Omen", "Bubble Mode V2 OFF")
     end,
 })
