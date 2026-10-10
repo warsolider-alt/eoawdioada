@@ -2819,13 +2819,13 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                 { title: "Choose Ped", col:"a", items: [
                     { type:"input",    id:"ped_hash",   label:"Ped model",     placeholder:"a_m_y_hipster_01" },
                     { type:"btn-grid", items: [
-                        { id:"ped_apply", label:"Apply Ped", icon:"user",  style:"soft" },
-                        { id:"ped_reset", label:"Reset Ped", icon:"tools", style:"soft" },
+                        { id:"ped_apply", label:"Apply Ped", icon:"user",  style:"soft", quiet:true },
+                        { id:"ped_reset", label:"Reset Ped", icon:"tools", style:"soft", quiet:true },
                     ]},
                     { type:"dropdown", id:"addonped", label:"Or pick an addon ped", options:["Scan first to populate"] },
                     { type:"btn-grid", items: [
-                        { type:"button", id:"scanaddonpeds", label:"Scan Addon Peds", icon:"search", style:"soft" },
-                        { type:"button", id:"applyaddonped", label:"Apply Selected", icon:"user", style:"soft" },
+                        { type:"button", id:"scanaddonpeds", label:"Scan Addon Peds", icon:"search", style:"soft", quiet:true },
+                        { type:"button", id:"applyaddonped", label:"Apply Selected", icon:"user", style:"soft", quiet:true },
                     ]},
                 ]},
                 { title: "Vehicle & Prop Tools", col:"b", items: [
@@ -2918,16 +2918,16 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
             triggers: [
                 { title: "Set Job", col:"a", items: [
                     { type:"input",  id:"jobname",  label:"Job Name",  placeholder:"police" },
-                    { type:"input",  id:"jobgrade", label:"Job Grade", placeholder:"4" },
+                    { type:"input",  id:"jobgrade", label:"Job Grade", placeholder:"4", numeric:true },
                     { type:"button", id:"setjob_trigger", label:"Set Job", icon:"user", style:"soft" },
                 ]},
                 { title: "Spawn Item", col:"a", items: [
                     { type:"input",  id:"itemname",  label:"Item Name", placeholder:"phone, weapon_pistol, bread, anything" },
-                    { type:"input",  id:"itemcount", label:"Amount",    placeholder:"1" },
+                    { type:"input",  id:"itemcount", label:"Amount",    placeholder:"1", numeric:true },
                     { type:"button", id:"giveitem_auto", label:"Spawn Item", icon:"list", style:"soft" },
                 ]},
                 { title: "Spawn Money", col:"a", items: [
-                    { type:"input",  id:"moneyamount", label:"Amount", placeholder:"50000" },
+                    { type:"input",  id:"moneyamount", label:"Amount", placeholder:"50000", numeric:true },
                     { type:"button", id:"givemoney_auto", label:"Spawn Money", icon:"bolt", style:"soft" },
                 ]},
                 { title: "Custom Trigger", col:"b", items: [
@@ -4045,6 +4045,7 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
             wrap.appendChild(lbl);
         }
         const inp = document.createElement("input"); inp.className = "inp"; inp.setAttribute("data-inp-id", item.id);
+        if (item.numeric) inp.setAttribute("data-numeric", "1");
         inp.placeholder = item.placeholder || "";
         inp.value = (State.inputs[item.id] != null ? State.inputs[item.id] : "");
         let lastSent = inp.value;
@@ -4141,8 +4142,10 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                     return;
                 }
                 sendAction({ action:"btn", id:b.id });
-                const severity = b.style === "risky" ? "failure" : "success";
-                toast(severity, "Omen", b.label);
+                if (!b.quiet) {
+                    const severity = b.style === "risky" ? "failure" : "success";
+                    toast(severity, "Omen", b.label);
+                }
             });
             g.appendChild(el);
         }
@@ -4570,6 +4573,8 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
         const el = document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")
                  ? document.activeElement : window.__omFocusedInput;
         if (!el) return;
+        if (el.hasAttribute("data-numeric")) text = text.replace(/[^\d]/g, "");
+        if (!text) return;
         const s = (el.selectionStart != null ? el.selectionStart : el.value.length), e = (el.selectionEnd != null ? el.selectionEnd : el.value.length);
         el.value = el.value.slice(0, s) + text + el.value.slice(e);
         const p = s + text.length; try { el.setSelectionRange(p, p); } catch(_) {}
@@ -4729,6 +4734,7 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
         if (__omEditKey(el, vk, shift, ctrl)) return;
         if (ctrl) return;   // swallow unhandled Ctrl combos instead of typing the letter
         const ch = vkToChar(vk, shift);
+        if (ch && el.hasAttribute("data-numeric") && !/^\d$/.test(ch)) return;
         if (ch) window.__omInsert(ch);
     };
     // ============================================================
