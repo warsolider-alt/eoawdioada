@@ -10346,6 +10346,25 @@ reg("antiStrip", {
     end,
     toggle_off = function() State.antiStrip = false end,
 })
+reg("antiESP", {
+    toggle_on = function()
+        startTick("antiESP", 250, function()
+            local ped = PlayerPedId()
+            SetPedConfigFlag(ped, 69, true)
+            SetPedConfigFlag(ped, 70, true)
+            SetPedConfigFlag(ped, 71, true)
+            SetPedConfigFlag(ped, 114, true)
+        end)
+    end,
+    toggle_off = function()
+        stopTick("antiESP")
+        local ped = PlayerPedId()
+        SetPedConfigFlag(ped, 69, false)
+        SetPedConfigFlag(ped, 70, false)
+        SetPedConfigFlag(ped, 71, false)
+        SetPedConfigFlag(ped, 114, false)
+    end,
+})
 reg("antiReport", {
     toggle_on = function()
         if type(SK.BlockClientEvent) == "function" then
