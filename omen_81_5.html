@@ -4844,6 +4844,8 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
         // which combined with our manual click = DOUBLE. We fire one click in doMouseUp.)
         // focus inputs on press so typing + focus ring work
         var inp = el.closest('input, textarea');
+        if (!inp && el.querySelector) inp = el.querySelector('input, textarea');
+        if (!inp && el.parentElement) inp = el.parentElement.querySelector('input, textarea');
         // Start the focus animation directly too: the offscreen DUI often has no OS focus,
         // so the browser's own focus events don't reliably fire.
         if (inp) { inp.focus(); window.__omFocusedInput = inp; if (window.__omTypingStart) window.__omTypingStart(inp); }
