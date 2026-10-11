@@ -6886,16 +6886,12 @@ reg("bubblemode", {
     toggle_on = function()
         Omen.State.bubblemode = true
         EnsureBubbleModeMasker()
-        _G.__OmenSelfConfigWrite = true
-        SetPedConfigFlag(PlayerPedId(), 423, true)
-        _G.__OmenSelfConfigWrite = false
+        _safeSetConfigFlag(PlayerPedId(), 423, true)
         toast("success", "Omen", "Bubble Mode ON")
     end,
     toggle_off = function()
         Omen.State.bubblemode = false
-        _G.__OmenSelfConfigWrite = true
-        SetPedConfigFlag(PlayerPedId(), 423, false)
-        _G.__OmenSelfConfigWrite = false
+        _safeSetConfigFlag(PlayerPedId(), 423, false)
         toast("info", "Omen", "Bubble Mode OFF")
     end,
 })
@@ -6904,10 +6900,10 @@ reg("bubbleV2", {
     toggle_on = function()
         Omen.State.bubblemodeV2 = true
         EnsureBubbleModeMasker()
-        _G.__OmenSelfConfigWrite = true
-        SetPedConfigFlag(PlayerPedId(), 423, true)
-        _G.__OmenSelfConfigWrite = false
-        -- also enable godmode + hooks (Shadow 1:1)
+        _safeSetConfigFlag(PlayerPedId(), 423, true)
+        if not Omen.State.godmode then
+            _G.__BubbleV2EnabledGod = true
+        end
         Omen.State.godmode = true
         SetPlayerInvincible(PlayerId(), true)
         EnableGodmodeHooks()
@@ -6932,10 +6928,10 @@ reg("bubbleV2", {
         for _, i in ipairs(GetActivePlayers() or {}) do
             if i ~= PlayerId() then SetEntityNoCollisionEntity(p, GetPlayerPed(i), false) end
         end
-        _G.__OmenSelfConfigWrite = true
-        SetPedConfigFlag(p, 423, false)
-        _G.__OmenSelfConfigWrite = false
-        if not Omen.State.godmode then
+        _safeSetConfigFlag(p, 423, false)
+        if _G.__BubbleV2EnabledGod then
+            _G.__BubbleV2EnabledGod = false
+            Omen.State.godmode = false
             DisableGodmodeHooks()
             SetPlayerInvincible(PlayerId(), false)
             SetEntityProofs(p, false, false, false, false, false, false, 0, false)
