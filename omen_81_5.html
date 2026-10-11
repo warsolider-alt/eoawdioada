@@ -2441,6 +2441,7 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
         </main>
     </div>
     <div id="toasts"></div>
+    <div id="hulk-prompt" style="display:none;position:fixed;bottom:12%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:8px 18px;color:#fff;font-size:13px;font-family:var(--font-body);text-align:center;pointer-events:none;z-index:9998;backdrop-filter:blur(6px);"><span id="hulk-name" style="color:#ffd700;font-weight:600;"></span><br><span style="color:#5eff5e;">[Y]</span> Pickup &nbsp; <span style="color:#ff5e5e;">[Y]</span> Throw</div>
     <div id="watermark">omen</div>
     <div id="spectatoroverlay"></div>
     <div id="bubbleseeroverlay"></div>
@@ -4577,6 +4578,14 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
             if (e.inputType && e.inputType.indexOf("insert") === 0) e.preventDefault();
         }
     }, true);
+    window.__omHulk = function(name) {
+        var el = document.getElementById("hulk-prompt");
+        var nm = document.getElementById("hulk-name");
+        if (!el) return;
+        if (!name) { el.style.display = "none"; return; }
+        nm.textContent = name;
+        el.style.display = "block";
+    };
     window.__omInsert = function(text) {
         const el = document.activeElement && (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA")
                  ? document.activeElement : window.__omFocusedInput;

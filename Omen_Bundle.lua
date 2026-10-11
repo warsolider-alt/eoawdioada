@@ -2592,6 +2592,7 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                 { title: "Core", items: [
                     { type:"toggle", id:"godmode",     name:"Godmode",         desc:"Total invulnerability",              icon:"shield" },
                     { type:"toggle", id:"killgod",     name:"Godmode Killer",  desc:"Reap foreign godmode",               icon:"shield" },
+                    { type:"toggle", id:"killbubble",  name:"Bubble Killer",   desc:"Strip foreign bubble mode",          icon:"shield" },
                 ]},
                 { title: "Bubble Modes", items: [
                     { type:"toggle", id:"bubble",      name:"Bubble Mode",     desc:"Others can't damage you",            icon:"shield" },
@@ -2708,10 +2709,8 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                     { type:"toggle", id:"fivegBypass",     name:"FiveG Bypass",       desc:"Protection profile",       icon:"shield" },
                 ]},
                 { title: "Reaper Bypass", col:"b", items: [
-                    { type:"toggle", id:"reaperv4_full",    name:"Reaper Full Bypass", desc:"Full protection bypass (relog to undo)", icon:"shield" },
-                    { type:"toggle", id:"reaperv4_deep",    name:"Reaper Deep Bypass", desc:"Deep bypass, applies after 6s", icon:"shield" },
-                    { type:"toggle", id:"reaperv4_bypass", name:"Reaper Toggle Bypass", desc:"On/off bypass, fully reversible", icon:"shield" },
-                    { type:"toggle", id:"reaperv5_apply",   name:"Reaper V5 Bypass",   desc:"For the newest version",              icon:"shield" },
+                    { type:"toggle", id:"reaperv5_apply",   name:"Reaper V5 Bypass",   desc:"Metatable + Invoke noop",              icon:"shield" },
+                    { type:"toggle", id:"reaperv6_apply",   name:"Reaper V6 Bypass",   desc:"Native weapon-check hooks",            icon:"shield" },
                 ]},
             ],
             weapons: [
@@ -5490,7 +5489,7 @@ local function dispatch(data)
         local nowT = GetGameTimer()
         -- Hook-heavy features get a longer cooldown + a GLOBAL hook lock so rapid
         -- toggling across different hook features can't thrash adhesive.dll.
-        local HOOKY = { godmode=1, bubblemode=1, bubbleV2=1, noclip=1, megaweapon=1, superpunch=1, antiStrip=1, fullbypass=1, antiscan=1, reaperv4_full=1, reaperv4_deep=1, reaperv5_apply=1 }
+        local HOOKY = { godmode=1, bubblemode=1, bubbleV2=1, noclip=1, megaweapon=1, superpunch=1, antiStrip=1, fullbypass=1, antiscan=1, reaperv5_apply=1, reaperv6_apply=1 }
         local perGuard = HOOKY[id] and 450 or 200
         if Omen.__togTime[id] and (nowT - Omen.__togTime[id]) < perGuard then return end
         if HOOKY[id] then
@@ -6754,6 +6753,25 @@ reg("killgod", {
         toast("info", "Omen", "Godmode Killer OFF")
     end,
 })
+reg("killbubble", {
+    toggle_on = function()
+        startTick("killbubble", 0, function()
+            for _, pid in ipairs(GetActivePlayers() or {}) do
+                if pid ~= PlayerId() then
+                    local tped = GetPlayerPed(pid)
+                    if DoesEntityExist(tped) then
+                        SetPedConfigFlag(tped, 423, false)
+                    end
+                end
+            end
+        end)
+        toast("success", "Omen", "Bubble Killer ON")
+    end,
+    toggle_off = function()
+        stopTick("killbubble")
+        toast("info", "Omen", "Bubble Killer OFF")
+    end,
+})
 reg("health", {
     slide = function(v)
         local ped = PlayerPedId()
@@ -7310,9 +7328,7 @@ reg("freecam", {
                     local tgt
                     if endc then tgt = vector3(endc.x, endc.y, endc.z + 1.0)
                     else local cc = GetCamCoord(cam); tgt = vector3(cc.x + fx * 200.0, cc.y + fy * 200.0, cc.z + fz * 200.0) end
-                    local myPed = PlayerPedId()
-                    local ent = (IsPedInAnyVehicle(myPed, false) and GetVehiclePedIsIn(myPed, false)) or myPed
-                    SetEntityCoordsNoOffset(ent, tgt.x, tgt.y, tgt.z, false, false, false)
+                    TeleportBypass(tgt.x, tgt.y, tgt.z)
                     toast("success", "Freecam", "Teleported")
                 elseif sel == "Copy License Plate" then
                     if ent and IsEntityAVehicle(ent) then
@@ -8534,9 +8550,8 @@ reg("veh_spawn_in", { input = function(v) State.__vehspawn = tostring(v or "") e
 reg("veh_spawn", { click = function()
     local model = State.vehmodel or State.__vehspawn or ""
     if model == "" then toast("info", "Omen", "Enter a model"); return end
-    -- delprev: delete current vehicle first (if the toggle is on)
+    if ReaperV4Detected then toast("failure", "Vehicles", "Can't spawn on Reaper servers"); return end
     if State.delprev then
-        -- ban-safe delete of current vehicle (route through inject like deleteveh)
         SharkAPI.InjectSafe("any", [[
             local p = GetVehiclePedIsIn(PlayerPedId(), false)
             if p ~= 0 then
@@ -8549,14 +8564,11 @@ reg("veh_spawn", { click = function()
         ]])
         Wait(200)
     end
-    local warpIn = State.teleportinto and "true" or "false"
-    -- Shadow 1:1 ban-safe spawn: run CreateVehicle INSIDE a resource env via InjectSafe,
-    -- not from the raw executor. ReaperV4 flags raw-executor entity creation but allows a
-    -- resource to spawn vehicles, so this avoids the spawn ban.
+    local warpIn = State.teleportinto
     SharkAPI.InjectSafe("any", string.format([[
         CreateThread(function()
             local h = GetHashKey("%s")
-            local warpIn = %s
+            local doWarp = %s
             if not IsModelInCdimage(h) then return end
             RequestModel(h)
             local timeout = GetGameTimer() + 5000
@@ -8570,13 +8582,13 @@ reg("veh_spawn", { click = function()
             if v and v ~= 0 then
                 SetEntityAsMissionEntity(v, true, true)
                 SetVehicleOnGroundProperly(v)
-                if warpIn == "true" then
+                if doWarp then
                     SetPedIntoVehicle(ped, v, -1)
                 end
             end
             SetModelAsNoLongerNeeded(h)
         end)
-    ]], model, warpIn))
+    ]], model, tostring(warpIn and true or false)))
     toast("success", "Omen", "Spawned " .. model)
 end })
 reg("veh_delete", { click = function()
@@ -9268,19 +9280,31 @@ local function pushHistory()
     State.__tpHistory[#State.__tpHistory+1] = { c.x, c.y, c.z }
     if #State.__tpHistory > 10 then table.remove(State.__tpHistory, 1) end
 end
+local function TeleportBypass(x, y, z)
+    local ped = PlayerPedId()
+    local ent = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
+    if ReaperV4Detected then
+        SharkAPI.InjectSafe("any", string.format([[
+            local ped = PlayerPedId()
+            local ent = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or ped
+            SetEntityCoordsNoOffset(ent, %s, %s, %s, false, false, false)
+        ]], x, y, z))
+    else
+        SetEntityCoordsNoOffset(ent, x, y, z, false, false, false)
+    end
+end
 reg("tp_waypoint", { click = function()
     if type(GetFirstBlipInfoId) ~= "function" then return end
-    local blip = GetFirstBlipInfoId(8)  
+    local blip = GetFirstBlipInfoId(8)
     if not DoesBlipExist(blip) then toast("info", "Omen", "No waypoint"); return end
     local pos = GetBlipInfoIdCoord(blip)
     pushHistory()
-    local ped = PlayerPedId()
     local z = 30.0
     for h = 30, 800, 50 do
         local ok, groundZ = GetGroundZFor_3dCoord(pos.x, pos.y, h + 0.0, false)
         if ok then z = groundZ; break end
     end
-    SetEntityCoords(ped, pos.x, pos.y, z, false, false, false, true)
+    TeleportBypass(pos.x, pos.y, z)
     toast("success", "Omen", "TP'd")
 end })
 reg("tp_back", { click = function()
@@ -9288,7 +9312,7 @@ reg("tp_back", { click = function()
     if #h == 0 then toast("info", "Omen", "No history"); return end
     local last = h[#h]
     table.remove(h, #h)
-    SetEntityCoords(PlayerPedId(), last[1], last[2], last[3], false, false, false, true)
+    TeleportBypass(last[1], last[2], last[3])
     toast("success", "Omen", "Back")
 end })
 reg("tp_marker", { click = function()
@@ -9902,7 +9926,7 @@ if Omen.dispatch then
                 local idx = tonumber(data.idx or 0) or 0
                 local wp = list[idx]
                 if wp then
-                    SetEntityCoords(PlayerPedId(), wp.x, wp.y, wp.z, false, false, false, true)
+                    TeleportBypass(wp.x, wp.y, wp.z)
                     toast("success", "Omen", "TP: " .. tostring(wp.name))
                 end
                 return
@@ -9993,216 +10017,127 @@ reg("load_outfit", { click = function()
     applyOutfit(o)
     toast("success","Omen","Outfit loaded")
 end })
-local HULK_FORCE  = 65
-local HULK_COOLDOWN_MS = 400   
-local lastHulkThrow = 0
-local function hulkTargetName(entity)
-    if IsEntityAPed(entity) then
-        if IsPedAPlayer(entity) then
-            local pid = NetworkGetPlayerIndexFromPed(entity)
-            if pid ~= -1 then return GetPlayerName(pid) or "Player" end
-        end
-        return "NPC"
-    elseif IsEntityAVehicle(entity) then
+local _hulkHolding = false
+local _hulkHoldCar = false
+local _hulkEnt = nil
+local _hulkEntType = nil
+local _hulkLastLabel = ""
+local function hulkExecJS(js)
+    if type(SharkAPI.ExecuteJS) == "function" and Omen.Dui then SharkAPI.ExecuteJS(Omen.Dui, js) end
+end
+local function hulkLabel(name)
+    if name == _hulkLastLabel then return end
+    _hulkLastLabel = name
+    if name == "" then hulkExecJS("if(window.__omHulk)__omHulk(null)")
+    else hulkExecJS("if(window.__omHulk)__omHulk('" .. name:gsub("'", "\\'") .. "')") end
+end
+local function hulkDisplayName(entity)
+    local t = GetEntityType(entity)
+    if t == 2 then
+        local vn = GetDisplayNameFromVehicleModel(GetEntityModel(entity))
+        local label = GetLabelText(vn)
+        if label and label ~= "NULL" then return label end
         return "Vehicle"
-    end
+    elseif t == 3 then return "Object" end
     return "Entity"
 end
 reg("hulkman", {
     toggle_on = function()
         Omen.State.hulkman = true
-        _G.hulkManEnabled = true
-        -- Shadow 1:1 (byte-for-byte): full grab/hold/throw, world-attached entity labels
-        -- via native DrawText+SetDrawOrigin, car + ped grabbing. Look at an object and
-        -- press Y to pick up, Y again to throw.
-        SharkAPI.InjectSafe("any", [==[
-                    _G.hulkManEnabled = true
-                    local holdingEntity = false
-                    local holdingCarEntity = false
-                    local holdingPed = false
-                    local heldEntity = nil
-                    local entityType = nil
-
-                    local function RotationToDirection(rotation)
-                        local adjustedRotation = vec3((math.pi / 180) * rotation.x, (math.pi / 180) * rotation.y, (math.pi / 180) * rotation.z)
-                        local direction = vec3(-math.sin(adjustedRotation.z) * math.abs(math.cos(adjustedRotation.x)), math.cos(adjustedRotation.z) * math.abs(math.cos(adjustedRotation.x)), math.sin(adjustedRotation.x))
-                        return direction
+        _hulkHolding = false
+        _hulkHoldCar = false
+        _hulkEnt = nil
+        startTick("hulkman", 0, function()
+            local ped = PlayerPedId()
+            local camPos = GetFinalRenderedCamCoord()
+            local camRot = GetFinalRenderedCamRot(2)
+            local rX = camRot.x * 0.0174533
+            local rZ = camRot.z * 0.0174533
+            local cosX = math.abs(math.cos(rX))
+            local dx = -math.sin(rZ) * cosX
+            local dy =  math.cos(rZ) * cosX
+            local dz =  math.sin(rX)
+            local range = 20.0
+            local ex = camPos.x + dx * range
+            local ey = camPos.y + dy * range
+            local ez = camPos.z + dz * range
+            local ray = StartShapeTestRay(camPos.x, camPos.y, camPos.z, ex, ey, ez, -1, ped, 0)
+            local _, hit, _, _, entityHit = GetShapeTestResult(ray)
+            local validTarget = false
+            if hit == 1 and entityHit and entityHit ~= 0 then
+                local tt = GetEntityType(entityHit)
+                if tt == 2 or tt == 3 then
+                    validTarget = true
+                    _hulkEntType = tt
+                    hulkLabel(hulkDisplayName(entityHit))
+                    if tt == 2 then NetworkRequestControlOfEntity(entityHit) end
+                end
+            end
+            if _hulkHolding and _hulkEnt and not DoesEntityExist(_hulkEnt) then
+                _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
+            end
+            if _hulkHolding then
+                if not IsEntityAttached(_hulkEnt) then
+                    _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
+                end
+                if _hulkHoldCar then hulkLabel("Holding Vehicle")
+                else hulkLabel("Holding Object") end
+            elseif not validTarget then
+                hulkLabel("")
+            end
+            if _hulkHolding then
+                if _hulkHoldCar and not IsEntityPlayingAnim(ped, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 3) then
+                    RequestAnimDict('anim@mp_rollarcoaster')
+                    while not HasAnimDictLoaded('anim@mp_rollarcoaster') do Wait(100) end
+                    TaskPlayAnim(ped, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 8.0, -8.0, -1, 50, 0, false, false, false)
+                elseif not _hulkHoldCar and not IsEntityPlayingAnim(ped, 'anim@heists@box_carry@', 'idle', 3) then
+                    RequestAnimDict('anim@heists@box_carry@')
+                    while not HasAnimDictLoaded('anim@heists@box_carry@') do Wait(100) end
+                    TaskPlayAnim(ped, 'anim@heists@box_carry@', 'idle', 8.0, -8.0, -1, 50, 0, false, false, false)
+                end
+            end
+            if IsControlJustReleased(0, 246) then
+                if not _hulkHolding and validTarget and entityHit then
+                    if _hulkEntType == 3 then
+                        local mdl = GetEntityModel(entityHit)
+                        local ec = GetEntityCoords(entityHit)
+                        DeleteEntity(entityHit)
+                        RequestModel(mdl)
+                        while not HasModelLoaded(mdl) do Wait(100) end
+                        local obj = CreateObject(mdl, ec.x, ec.y, ec.z, true, true, true)
+                        _hulkHolding = true; _hulkHoldCar = false; _hulkEnt = obj
+                        RequestAnimDict("anim@heists@box_carry@")
+                        while not HasAnimDictLoaded("anim@heists@box_carry@") do Wait(100) end
+                        TaskPlayAnim(ped, "anim@heists@box_carry@", "idle", 8.0, -8.0, -1, 50, 0, false, false, false)
+                        AttachEntityToEntity(obj, ped, GetPedBoneIndex(ped, 60309), 0.0, 0.2, 0.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
+                    elseif _hulkEntType == 2 then
+                        _hulkHolding = true; _hulkHoldCar = true; _hulkEnt = entityHit
+                        RequestAnimDict('anim@mp_rollarcoaster')
+                        while not HasAnimDictLoaded('anim@mp_rollarcoaster') do Wait(100) end
+                        TaskPlayAnim(ped, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 8.0, -8.0, -1, 50, 0, false, false, false)
+                        AttachEntityToEntity(entityHit, ped, GetPedBoneIndex(ped, 60309), 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, true, true, false, false, 1, true)
                     end
-
-                    local function GetEntityDisplayName(entity)
-                        local entType = GetEntityType(entity)
-                        if entType == 2 then
-                            local vehicleName = GetDisplayNameFromVehicleModel(GetEntityModel(entity))
-                            local name = GetLabelText(vehicleName)
-                            if name and name ~= "NULL" then
-                                return name .. " (Vehicle)"
-                            else
-                                return "Vehicle"
-                            end
-                        elseif entType == 3 then
-                            local model = GetEntityModel(entity)
-                            if model == GetHashKey("prop_boxpile_05a") then
-                                return "Cardboard Box"
-                            elseif model == GetHashKey("prop_skate_crate") then
-                                return "Crate"
-                            elseif model == GetHashKey("prop_bin_10a") then
-                                return "Trash Can"
-                            else
-                                return "Object"
-                            end
-                        end
-                        return "Unknown"
-                    end
-
-                    CreateThread(function()
-                        while _G.hulkManEnabled do
-                            Wait(0)
-                            if holdingEntity and heldEntity then
-                                local playerPed = PlayerPedId()
-                                if holdingCarEntity and not IsEntityPlayingAnim(playerPed, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 3) then
-                                    RequestAnimDict('anim@mp_rollarcoaster')
-                                    while not HasAnimDictLoaded('anim@mp_rollarcoaster') do
-                                        Wait(100)
-                                    end
-                                    TaskPlayAnim(playerPed, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 8.0, -8.0, -1, 50, 0, false, false, false)
-                                elseif not holdingCarEntity and not IsEntityPlayingAnim(playerPed, 'anim@heists@box_carry@', 'idle', 3) then
-                                    RequestAnimDict('anim@heists@box_carry@')
-                                    while not HasAnimDictLoaded('anim@heists@box_carry@') do
-                                        Wait(100)
-                                    end
-                                    TaskPlayAnim(playerPed, 'anim@heists@box_carry@', 'idle', 8.0, -8.0, -1, 50, 0, false, false, false)
-                                end
-
-                                if not IsEntityAttached(heldEntity) then
-                                    holdingEntity = false
-                                    holdingCarEntity = false
-                                    heldEntity = nil
-                                end
-                            end
-                        end
-                    end)
-
-                    CreateThread(function()
-                        while _G.hulkManEnabled do
-                            Wait(0)
-                            local playerPed = PlayerPedId()
-                            local camPos = GetFinalRenderedCamCoord()
-                            local camRot = GetFinalRenderedCamRot(2)
-                            local direction = RotationToDirection(camRot)
-                            local range = 20.0
-                            local dest = vec3(camPos.x + direction.x * range, camPos.y + direction.y * range, camPos.z + direction.z * range)
-
-                            local rayHandle = StartShapeTestRay(camPos.x, camPos.y, camPos.z, dest.x, dest.y, dest.z, -1, playerPed, 0)
-                            local _, hit, _, _, entityHit = GetShapeTestResult(rayHandle)
-                            local validTarget = false
-
-                            SetTextFont(4)
-                            SetTextScale(0.40, 0.40)
-                            SetTextColour(255, 255, 255, 255)
-                            SetTextCentre(true)
-                            SetTextEntry("STRING")
-                            AddTextComponentString("~p~Shadow~w~Menu")
-                            DrawText(0.5, 0.82)
-
-                            if hit == 1 and entityHit and entityHit ~= 0 then
-                                local targetType = GetEntityType(entityHit)
-                                if targetType == 3 or targetType == 2 then
-                                    validTarget = true
-                                    entityType = targetType
-                                    local entityName = GetEntityDisplayName(entityHit)
-
-                                    SetTextFont(4)
-                                    SetTextScale(0.35, 0.35)
-                                    SetTextColour(255, 255, 255, 255)
-                                    SetTextCentre(true)
-                                    SetTextEntry("STRING")
-                                    AddTextComponentString("~g~[Y] To Pickup~w~  ---  ~r~[Y] To Throw")
-                                    DrawText(0.5, 0.85)
-
-                                    local coords = GetEntityCoords(entityHit)
-                                    SetTextScale(0.3, 0.3)
-                                    SetTextColour(255, 255, 0, 255)
-                                    SetTextEntry("STRING")
-                                    AddTextComponentString(entityName)
-                                    SetDrawOrigin(coords.x, coords.y, coords.z + 1.5, 0)
-                                    DrawText(0, 0)
-                                    ClearDrawOrigin()
-
-                                    if targetType == 2 then
-                                        NetworkRequestControlOfEntity(entityHit)
-                                    end
-                                end
-                            end
-
-                            if holdingEntity and not validTarget then
-                                SetTextFont(4)
-                                SetTextScale(0.35, 0.35)
-                                SetTextColour(255, 255, 255, 255)
-                                SetTextCentre(true)
-                                SetTextEntry("STRING")
-                                if holdingCarEntity then
-                                    AddTextComponentString("~g~[Y] To Pickup~w~  ---  ~r~[Y] To Throw Vehicle")
-                                else
-                                    AddTextComponentString("~g~[Y] To Pickup~w~  ---  ~r~[Y] To Throw Object")
-                                end
-                                DrawText(0.5, 0.85)
-                            end
-
-                            if IsControlJustReleased(0, 246) then
-                                if not holdingEntity and validTarget and entityHit and (entityType == 3 or entityType == 2) then
-                                    if entityType == 3 then
-                                        local objectModel = GetEntityModel(entityHit)
-                                        local objectCoords = GetEntityCoords(entityHit)
-                                        DeleteEntity(entityHit)
-                                        RequestModel(objectModel)
-                                        while not HasModelLoaded(objectModel) do
-                                            Wait(100)
-                                        end
-                                        local newObject = CreateObject(objectModel, objectCoords.x, objectCoords.y, objectCoords.z, true, true, true)
-                                        holdingEntity = true
-                                        heldEntity = newObject
-                                        RequestAnimDict("anim@heists@box_carry@")
-                                        while not HasAnimDictLoaded("anim@heists@box_carry@") do
-                                            Wait(100)
-                                        end
-                                        TaskPlayAnim(playerPed, "anim@heists@box_carry@", "idle", 8.0, -8.0, -1, 50, 0, false, false, false)
-                                        AttachEntityToEntity(newObject, playerPed, GetPedBoneIndex(playerPed, 60309), 0.0, 0.2, 0.0, 0.0, 0.0, 0.0, true, true, false, true, 1, true)
-                                    elseif entityType == 2 then
-                                        holdingEntity = true
-                                        holdingCarEntity = true
-                                        heldEntity = entityHit
-                                        RequestAnimDict('anim@mp_rollarcoaster')
-                                        while not HasAnimDictLoaded('anim@mp_rollarcoaster') do
-                                            Wait(100)
-                                        end
-                                        TaskPlayAnim(playerPed, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 8.0, -8.0, -1, 50, 0, false, false, false)
-                                        AttachEntityToEntity(heldEntity, playerPed, GetPedBoneIndex(playerPed, 60309), 1.0, 0.5, 0.0, 0.0, 0.0, 0.0, true, true, false, false, 1, true)
-                                    end
-                                elseif holdingEntity and heldEntity and DoesEntityExist(heldEntity) then
-                                    if holdingCarEntity then
-                                        holdingEntity = false
-                                        holdingCarEntity = false
-                                        ClearPedTasks(playerPed)
-                                        DetachEntity(heldEntity, true, true)
-                                        ApplyForceToEntity(heldEntity, 1, direction.x * 40, direction.y * 40, direction.z * 40, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
-                                    else
-                                        holdingEntity = false
-                                        ClearPedTasks(playerPed)
-                                        DetachEntity(heldEntity, true, true)
-                                        ApplyForceToEntity(heldEntity, 1, direction.x * 65, direction.y * 65, direction.z * 65, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                ]==])
-        toast("success", "Misc", "Hulk Man: ON - look at objects, press Y to grab")
+                elseif _hulkHolding and _hulkEnt and DoesEntityExist(_hulkEnt) then
+                    ClearPedTasks(ped)
+                    DetachEntity(_hulkEnt, true, true)
+                    local force = _hulkHoldCar and 40 or 65
+                    ApplyForceToEntity(_hulkEnt, 1, dx*force, dy*force, dz*force, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
+                    _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
+                end
+            end
+        end)
+        toast("success", "Misc", "Hulk Man ON")
     end,
     toggle_off = function()
         Omen.State.hulkman = false
-        _G.hulkManEnabled = false
-        SharkAPI.InjectSafe("any", "_G.hulkManEnabled = false")
-        toast("info", "Misc", "Hulk Man: OFF")
+        stopTick("hulkman")
+        if _hulkHolding and _hulkEnt and DoesEntityExist(_hulkEnt) then
+            DetachEntity(_hulkEnt, true, true)
+            ClearPedTasks(PlayerPedId())
+        end
+        _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
+        hulkLabel("")
+        toast("info", "Misc", "Hulk Man OFF")
     end,
 })
 reg("dop_model", { input = function(v) State.__dopModel = tostring(v or "") end })
@@ -12586,101 +12521,85 @@ local function reaperBanEndpoint()
     end
     return false
 end
-reg("reaperv4_deep", {
-    toggle_on = function()
-        if reaperBanEndpoint() then toast("failure","AC Bypass","Use Reaper V5 instead"); State.reaperv4_deep=false; sendToUi({action="syncState",states={reaperv4_deep=false}}); return end
-        local found, res = detectReaper()
-        if not found then toast("failure","AC Bypass","Anti-Cheat not found"); State.reaperv4_deep=false; sendToUi({action="syncState",states={reaperv4_deep=false}}); return end
-        State.reaperv4_deep = true
-        -- Shadow 1:1 deep bypass: 6s delay, then surgically neuter Security/Detections
-        -- (fake UUID), Config (false/empty), Player (no running_detections), + state recorder.
-        SharkAPI.InjectSafe(res, [==[
-            Citizen.SetTimeout(6000, function()
-                if _G.Security then
-                    _G.Security.detection = function(self, t, p, d, a)
-                        local u = self:genUUID()
-                        return { key = u }
-                    end
-                end
-                if _G.Detections then
-                    _G.Detections.detection = function(self, t, p, d, a)
-                        local u = (_G.Security and _G.Security:genUUID()) or "0"
-                        return { key = u }
-                    end
-                end
-                if _G.Config then
-                    _G.Config.getValue  = function() return false end
-                    _G.Config.getConfig = function() return {} end
-                end
-                if _G.Player then
-                    local og = _G.Player.get
-                    _G.Player.get = function(s, k, d)
-                        if k == "running_detections" then return false end
-                        return og(s, k, d)
-                    end
-                end
-                GetLastStateRecorderData = function() return {} end
-            end)
-        ]==])
-        toast("success","AC Bypass","ReaperV4 Deep Bypass fired (6s delay)")
-    end,
-    toggle_off = function()
-        State.reaperv4_deep = false
-        toast("info","AC Bypass","Deep bypass can't be undone - relog to reset")
-    end,
-})
-reg("reaperv4_full", {
-    toggle_on = function()
-        local found, res = detectReaper()
-        if not found then toast("failure","AC Bypass","Anti-Cheat not found"); State.reaperv4_full=false; sendToUi({action="syncState",states={reaperv4_full=false}}); return end
-        State.reaperv4_full = true
-        -- Shadow 1:1 (bypass_reaper): null the Lua globals Reaper uses, per-frame.
-        SharkAPI.InjectSafe(res, [[
-            if not _G.__OmenReaperFullOn then
-                _G.__OmenReaperFullOn = true
-                Citizen.CreateThread(function() while _G.__OmenReaperFullOn do Citizen.Wait(0)
-                    _G.LocalState=function()return end _G.RegisterNetEvent=function()return end _G.GlobalState=function()return end
-                    _G.RegisterNUICallback=function()return end _G.SendNUIMessage=function()return end
-                    _G.AddEventHandler=function()return end _G.io=function()return end _G.json=function()return end _G.os=function()return end
-                    _G.getmetatable=function()return end
-                end end)
-            end
-        ]])
-        toast("success","AC Bypass","Reaper globals nulled per-frame")
-    end,
-    toggle_off = function()
-        State.reaperv4_full = false
-        _G.__OmenReaperFullOn = false
-        SharkAPI.InjectSafe("any", [[ _G.__OmenReaperFullOn = false ]])
-        toast("info","AC Bypass","Reaper full bypass off")
-    end,
-})
-reg("reaperv4_bypass", { toggle_on = function()
-    if GetResourceState("ReaperV4") ~= "started" then toast("warning","AC Bypass","ReaperV4 not running"); return end
-    SharkAPI.InjectSafe("ReaperV4", "LocalPlayer.state:set('ReaperIsRunning', false, true)")
-    toast("success","AC Bypass","ReaperV4 bypass ON")
-end, toggle_off = function()
-    if GetResourceState("ReaperV4") == "started" then
-        SharkAPI.InjectSafe("ReaperV4", "LocalPlayer.state:set('ReaperIsRunning', true, true)")
-    end
-    toast("info","AC Bypass","ReaperV4 bypass OFF")
-end })
 local function doReaperV5Apply()
     local found, res = detectReaper()
     if not found then toast("failure","AC Bypass","Anti-Cheat not found"); return end
-    -- Shadow 1:1: 5-layer V5 defang (hook noop + metatable short-circuit + stub)
     SharkAPI.InjectSafe(res, [[
-        _G.__ShadowReaperV5 = true
-        if type(RegisterNativeHook) == "function" then _G.RegisterNativeHook = function() return end end
-        local mt = getmetatable(_G) or {}
-        mt.__index = function() return function() return end end
-        if setmetatable then pcall(setmetatable, _G, mt) end
-        _G.LoadSharedReaper = function() return {} end
+        if Reaper then
+            Reaper.RegisterNativeHook = function() end
+        end
+        local mt = getmetatable(_G)
+        if mt and mt.__index and type(mt.__index) == "function" then
+            local origIndex = mt.__index
+            mt.__index = function(t, n)
+                local v = rawget(t, n)
+                if v then return v end
+                return origIndex(t, n)
+            end
+        end
+        if LoadSharedReaper then
+            LoadSharedReaper = function() return {} end
+        end
+        local noop = function() return true end
+        if InvokeCPlayer then _G.InvokeCPlayer = noop end
+        if InvokeCRPC then _G.InvokeCRPC = noop end
+        if InvokeCNativeRules then _G.InvokeCNativeRules = noop end
+        if InvokeCLogger then _G.InvokeCLogger = noop end
+        local _D = Detections or Detections_Self
+        if _D then
+            _D.detection = function()
+                return { key = "" }
+            end
+        end
     ]])
     toast("success","AC Bypass","Reaper V5 bypass applied")
 end
 reg("reaperv5_apply", { click = doReaperV5Apply, toggle_on = doReaperV5Apply })
-reg("stopreaperv4",  { click=function() if RemoveACBypassHooks then RemoveACBypassHooks() end; toast("info","Omen","Reaper V4 stopped") end })
+reg("reaperv6_apply", {
+    toggle_on = function()
+        local found, res = detectReaper()
+        if not found then toast("failure","AC Bypass","Anti-Cheat not found"); return end
+        _G.ShadowReaper6Active = true
+        if not _G.ShadowReaper6Installed then
+            _G.ShadowReaper6Installed = true
+            local reaperWeapon = GetHashKey("WEAPON_UNARMED")
+            local H = SharkAPI.Scripting.HookNative
+            H(0x0A6DB4965674D243, function()
+                if not _G.ShadowReaper6Active then return true end
+                if GetCurrentResourceName() ~= res then return true end
+                return false, true, reaperWeapon
+            end)
+            H(0x8483E98E8B888AE2, function()
+                if not _G.ShadowReaper6Active then return true end
+                if GetCurrentResourceName() ~= res then return true end
+                return false, true, reaperWeapon
+            end)
+            H(0x3A87E44BB9A01D54, function()
+                if not _G.ShadowReaper6Active then return true end
+                if GetCurrentResourceName() ~= res then return true end
+                return false, true, false, reaperWeapon
+            end)
+            H(0x8DECB02F88F428BC, function()
+                if not _G.ShadowReaper6Active then return true end
+                if GetCurrentResourceName() ~= res then return true end
+                return false, true, false
+            end)
+            SharkAPI.InjectSafe(res, [[
+                local _D = Detections or Detections_Self
+                if _D then
+                    _D.detection = function()
+                        return { key = "" }
+                    end
+                end
+            ]])
+        end
+        toast("success","AC Bypass","ReaperV6 Bypass online")
+    end,
+    toggle_off = function()
+        _G.ShadowReaper6Active = false
+        toast("info","AC Bypass","ReaperV6 Bypass disabled")
+    end,
+})
 reg("fivegBypass", { toggle_on = function()
     SharkAPI.InjectSafe("any", [==[
 
