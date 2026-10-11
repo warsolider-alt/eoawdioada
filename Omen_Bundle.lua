@@ -7405,18 +7405,22 @@ reg("spoof", {
 
 reg("megabat", {
     toggle_on = function()
+        State.megabat = true
         local ped = PlayerPedId()
         local hash = GetHashKey("WEAPON_BAT")
         if not _G.spoofWeaponEnabled and EnableSpoofWeapon then _G.__MegaBatSpoofedByUs = true; EnableSpoofWeapon() end
         GiveWeaponToPed(ped, hash, 1, false, true)
         SetCurrentPedWeapon(ped, hash, true)
-        SharkAPI.EditWeaponSize(10.0)
+        if has("BlockServerWeaponChange") then SK.BlockServerWeaponChange(true) end
+        SK.EditWeaponSize(10.0)
         toast("success", "Weapons", "Mega Bat on")
     end,
     toggle_off = function()
-        SharkAPI.EditWeaponSize(1.0)
+        State.megabat = false
+        SK.EditWeaponSize(1.0)
+        if has("BlockServerWeaponChange") then SK.BlockServerWeaponChange(false) end
         RemoveWeaponFromPed(PlayerPedId(), GetHashKey("WEAPON_BAT"))
-        if _G.__MegaBatSpoofedByUs and DisableSpoofWeapon then _G.__MegaBatSpoofedByUs = false; DisableSpoofWeapon() end
+        if _G.__MegaBatSpoofedByUs then _G.__MegaBatSpoofedByUs = false; if DisableSpoofWeapon then DisableSpoofWeapon() end end
         toast("info", "Weapons", "Mega Bat off")
     end,
 })
@@ -7471,14 +7475,16 @@ reg("rapidfire", {
     toggle_on = function()
         startTick("rapidfire", 0, function()
             local ped = PlayerPedId()
-            SetPedShootRate(ped, 1000)
-            if IsPedShooting(ped) then MakePedReload(ped) end
+            if IsPedShooting(ped) then
+                local _, w = GetCurrentPedWeapon(ped, true)
+                if w ~= 0 then
+                    local ok, maxClip = GetMaxAmmoInClip(ped, w, true)
+                    if ok then SetAmmoInClip(ped, w, maxClip) end
+                end
+            end
         end)
     end,
-    toggle_off = function()
-        stopTick("rapidfire")
-        SetPedShootRate(PlayerPedId(), 100)
-    end,
+    toggle_off = function() stopTick("rapidfire") end,
 })
 reg("weaponname", { input = function(v) State.__weaponname = tostring(v or "") end })
 reg("give", { click = function()
