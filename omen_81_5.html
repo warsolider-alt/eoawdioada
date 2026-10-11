@@ -4137,10 +4137,18 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                 if (b.id === "tp_history")    { openWaypoints(); sendAction({action:"btn", id:b.id}); return; }
                 if (b.id === "cw_open")       { openCustomWeapons(); return; }
                 if (b.id.startsWith("cfg_")) {
-                    // Lua answers with its own toast (saved / not found / etc.)
                     sendAction({ action:"btn", id:b.id, v:(State.inputs.cfg_name || "").trim() });
                     return;
                 }
+                if (window.__omFocusedInput && window.__omFocusedInput.blur) { window.__omFocusedInput.blur(); }
+                try {
+                    document.querySelectorAll('[data-inp-id]').forEach(function(inp){
+                        var iid = inp.getAttribute('data-inp-id');
+                        if (iid && inp.value !== undefined && inp.value !== "") {
+                            sendAction({ action:"inp", id: iid, v: inp.value });
+                        }
+                    });
+                } catch (err) {}
                 sendAction({ action:"btn", id:b.id });
                 if (!b.quiet) {
                     const severity = b.style === "risky" ? "failure" : "success";
