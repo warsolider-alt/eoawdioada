@@ -7945,18 +7945,85 @@ reg("rage", {
 reg("silentaim", {
     toggle_on = function()
         State.silentaim = true
-        local st = (type(SharkAPI.SyncTree) == "table") and SharkAPI.SyncTree
-        if st and type(st.SetSilentAim) == "function" then
-            st.SetSilentAim(true)
-            toast("success", "Aimbot", "Silent Aim ON")
-        else
-            toast("failure", "Aimbot", "Silent Aim unavailable (executor has no SyncTree.SetSilentAim)")
-        end
+        rebuildAimbotCfg()
+        _G.__ShadowSilentAim = true
+        SharkAPI.InjectSafe("any", [[
+            _G.__ShadowSilentAim = true
+            if _G.__ShadowSilentAimRunning then return end
+            _G.__ShadowSilentAimRunning = true
+            CreateThread(function()
+                while _G.__ShadowSilentAim do
+                    Wait(0)
+                    local cfg = _G.__ShadowAimbotCfg or {}
+                    local selfPed = PlayerPedId()
+                    if IsPedShooting(selfPed) then
+                        local cam = GetGameplayCamCoord()
+                        local rot = GetGameplayCamRot(2)
+                        local pitch = math.rad(rot.x)
+                        local yaw = math.rad(rot.z)
+                        local fX = -math.sin(yaw) * math.cos(pitch)
+                        local fY =  math.cos(yaw) * math.cos(pitch)
+                        local fZ =  math.sin(pitch)
+                        local maxDist = cfg.distCheck and cfg.maxDist or 999.0
+                        local fovCos  = math.cos(math.rad(cfg.fov or 10))
+                        local bestPos, bestAngle = nil, math.huge
+                        for _, pid in ipairs(GetActivePlayers() or {}) do
+                            local isFriend = cfg.useFriends and cfg.friends and cfg.friends[GetPlayerServerId(pid)]
+                            if pid ~= PlayerId() and not isFriend then
+                                local tp = GetPlayerPed(pid)
+                                if tp ~= 0 and DoesEntityExist(tp)
+                                   and (not cfg.deadCheck or not IsEntityDead(tp))
+                                   and (not cfg.invCheck or IsEntityVisible(tp)) then
+                                    local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                                    local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
+                                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+                                    if dist <= maxDist and dist > 0.0 then
+                                        local dot = (dx*fX + dy*fY + dz*fZ) / dist
+                                        if (not cfg.fovCheck) or dot >= fovCos then
+                                            local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
+                                            if angle < bestAngle then bestAngle = angle; bestPos = h end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        if cfg.targetPeds then
+                            for _, tp in ipairs(GetGamePool("CPed") or {}) do
+                                if tp ~= selfPed and DoesEntityExist(tp) and not IsPedAPlayer(tp)
+                                   and (not cfg.deadCheck or not IsEntityDead(tp))
+                                   and (not cfg.invCheck or IsEntityVisible(tp)) then
+                                    local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                                    local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
+                                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+                                    if dist <= maxDist and dist > 0.0 then
+                                        local dot = (dx*fX + dy*fY + dz*fZ) / dist
+                                        if (not cfg.fovCheck) or dot >= fovCos then
+                                            local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
+                                            if angle < bestAngle then bestAngle = angle; bestPos = h end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        if bestPos then
+                            local weapon = GetSelectedPedWeapon(selfPed)
+                            ShootSingleBulletBetweenCoords(
+                                cam.x, cam.y, cam.z,
+                                bestPos.x, bestPos.y, bestPos.z,
+                                200, true, weapon, selfPed, true, true, 200.0
+                            )
+                        end
+                    end
+                end
+                _G.__ShadowSilentAimRunning = false
+            end)
+        ]])
+        toast("success", "Aimbot", "Silent Aim ON")
     end,
     toggle_off = function()
         State.silentaim = false
-        local st = (type(SharkAPI.SyncTree) == "table") and SharkAPI.SyncTree
-        if st and type(st.SetSilentAim) == "function" then st.SetSilentAim(false) end
+        _G.__ShadowSilentAim = false
+        SharkAPI.InjectSafe("any", "_G.__ShadowSilentAim = false; _G.__ShadowSilentAimRunning = false")
         toast("info", "Aimbot", "Silent Aim OFF")
     end,
 })
@@ -10568,8 +10635,7 @@ reg("infJump", {
     toggle_on  = function()
         startTick("infJump", 0, function()
             local ped = PlayerPedId()
-            -- jump again while in the air (not in a vehicle) = infinite jump
-            if IsControlJustPressed(0, 22) and IsPedInAir(ped) and not IsPedInAnyVehicle(ped, false) then
+            if IsControlJustPressed(0, 22) and not IsPedInAnyVehicle(ped, false) and GetEntityHeightAboveGround(ped) > 1.0 then
                 local vel = GetEntityVelocity(ped)
                 SetEntityVelocity(ped, vel.x, vel.y, 6.0)
             end
