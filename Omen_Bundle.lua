@@ -7405,50 +7405,17 @@ reg("spoof", {
 
 reg("megabat", {
     toggle_on = function()
-        GiveWeaponToPed(PlayerPedId(), GetHashKey("WEAPON_BAT"), 1, false, true)
-        -- Auto-enable spoof (Shadow behavior)
+        local ped = PlayerPedId()
+        local hash = GetHashKey("WEAPON_BAT")
         if not _G.spoofWeaponEnabled and EnableSpoofWeapon then _G.__MegaBatSpoofedByUs = true; EnableSpoofWeapon() end
-        if has("EditWeaponSize") then
-            SK.EditWeaponSize(10.0)
-        else
-            -- Shadow 1:1 manual mega-bat: create oversized weapon object, track held bat
-            SharkAPI.InjectSafe("any", [[
-                if GetResourceState("ox_inventory") == "started" then _G.RemoveAllPedWeapons = function() return end end
-                if not _G.__OmenMegaBatThread then
-                    _G.__OmenMegaBatThread = true
-                    _G.__OmenMegaBat = true
-                    CreateThread(function()
-                        Wait(150)
-                        local ip = GetEntityCoords(PlayerPedId())
-                        local obj = CreateWeaponObject(GetHashKey("WEAPON_BAT"), 1, ip.x, ip.y, ip.z, false, 3.5, 0)
-                        if not DoesEntityExist(obj) then _G.__OmenMegaBatThread = nil; return end
-                        SetEntityAsMissionEntity(obj, true, true)
-                        SetEntityCollision(obj, false, false)
-                        SetEntityHasGravity(obj, false)
-                        _G.__OmenMegaBatObj = obj
-                        while _G.__OmenMegaBat and DoesEntityExist(obj) do
-                            Wait(0)
-                            local p = PlayerPedId()
-                            local held = GetCurrentPedWeaponEntityIndex(p)
-                            if held ~= 0 and DoesEntityExist(held) then
-                                local pos = GetEntityCoords(held)
-                                local rot = GetEntityRotation(held, 2)
-                                SetEntityCoords(obj, pos.x, pos.y, pos.z, false, false, false, true)
-                                SetEntityRotation(obj, rot.x, rot.y, rot.z, 2, true)
-                            end
-                        end
-                        if DoesEntityExist(obj) then DeleteEntity(obj) end
-                        _G.__OmenMegaBatThread = nil
-                    end)
-                end
-            ]])
-        end
+        GiveWeaponToPed(ped, hash, 1, false, true)
+        SetCurrentPedWeapon(ped, hash, true)
+        SharkAPI.EditWeaponSize(10.0)
         toast("success", "Weapons", "Mega Bat on")
     end,
     toggle_off = function()
-        if has("EditWeaponSize") then SK.EditWeaponSize(1.0) end
-        _G.__OmenMegaBat = false
-        SharkAPI.InjectSafe("any", [[ _G.__OmenMegaBat = false ]])
+        SharkAPI.EditWeaponSize(1.0)
+        RemoveWeaponFromPed(PlayerPedId(), GetHashKey("WEAPON_BAT"))
         if _G.__MegaBatSpoofedByUs and DisableSpoofWeapon then _G.__MegaBatSpoofedByUs = false; DisableSpoofWeapon() end
         toast("info", "Weapons", "Mega Bat off")
     end,
@@ -7502,9 +7469,14 @@ reg("nospread", {
 })
 reg("rapidfire", {
     toggle_on = function()
-        SetPedShootRate(PlayerPedId(), 500)
+        startTick("rapidfire", 0, function()
+            local ped = PlayerPedId()
+            SetPedShootRate(ped, 1000)
+            if IsPedShooting(ped) then MakePedReload(ped) end
+        end)
     end,
     toggle_off = function()
+        stopTick("rapidfire")
         SetPedShootRate(PlayerPedId(), 100)
     end,
 })
@@ -9111,49 +9083,22 @@ reg("pap", {
 reg("superpunch", {
     toggle_on = function()
         Omen.State.superpunch = true
-        -- WaveShield-safe variant: instead of SetPlayerMeleeWeaponDamageModifier
-        -- (which WaveShield flags), hook GetWeaponDamage via SharkAPI to boost
-        -- unarmed damage, and use the spoof-weapon hooks to mask what fires.
-        -- This keeps the modifier off the player-record WaveShield watches.
-        if not _G.spoofWeaponEnabled and EnableSpoofWeapon then _G.__PunchSpoofedByUs = true; EnableSpoofWeapon() end
-        if type(SharkAPI.SyncTree) == "table" and type(SharkAPI.SyncTree.SpoofServerWeapon) == "function" then
-            SharkAPI.SyncTree.SpoofServerWeapon(GetHashKey("WEAPON_UNARMED"))
-        end
-        if type(SharkAPI.Scripting) == "table" and type(SharkAPI.Scripting.HookNative) == "function" and not _G.__OmenPunchHook then
-            _G.__OmenPunchHook = true
-            -- GetWeaponDamage: boost unarmed for the local player only
-            SharkAPI.Scripting.HookNative(0x3133B907D8B32053, function(weaponHash, comp)
-                if weaponHash == GetHashKey("WEAPON_UNARMED") then return false, 999.0 end
-                return true
+        SharkAPI.InjectSafe("any", [[
+            _G.__ShadowSuperPunch = true
+            local unarmedHash = GetHashKey("weapon_unarmed")
+            CreateThread(function()
+                while _G.__ShadowSuperPunch do
+                    SetWeaponDamageModifier(unarmedHash, 999.0)
+                    Wait(0)
+                end
+                SetWeaponDamageModifier(unarmedHash, 1.0)
             end)
-        end
-        -- On Reaper, also fire the per-weapon modifier via inject (slips through)
-        if GetResourceState("ReaperV4") == "started" then
-            SharkAPI.InjectSafe("any", [[
-                _G.__SuperPunchInject = true
-                local unarmedHash = GetHashKey("WEAPON_UNARMED")
-                CreateThread(function()
-                    while _G.__SuperPunchInject do
-                        Wait(0)
-                        SetWeaponDamageModifier(unarmedHash, 999.0)
-                    end
-                    SetWeaponDamageModifier(unarmedHash, 1.0)
-                end)
-            ]])
-        end
+        ]])
         toast("success", "Omen", "Super Punch ON")
     end,
     toggle_off = function()
         Omen.State.superpunch = false
-        _G.__OmenPunchHook = false
-        if type(SharkAPI.SyncTree) == "table" and type(SharkAPI.SyncTree.SpoofServerWeapon) == "function" then
-            SharkAPI.SyncTree.SpoofServerWeapon(0)
-        end
-        _G.__SuperPunchInject = false
-        if GetResourceState("ReaperV4") == "started" then
-            SharkAPI.InjectSafe("any", [[ _G.__SuperPunchInject = false ]])
-        end
-        if _G.__PunchSpoofedByUs and DisableSpoofWeapon then _G.__PunchSpoofedByUs = nil; DisableSpoofWeapon() end
+        SharkAPI.InjectSafe("any", [[ _G.__ShadowSuperPunch = false ]])
         toast("info", "Omen", "Super Punch OFF")
     end,
 })
@@ -9683,11 +9628,16 @@ end })
 reg("hide_discord", {
     toggle_on  = function()
         State.hide_discord = true
-        Omen.send({ action = "syncState", states = { hide_discord = true } })
+        startTick("hide_discord", 500, function()
+            SetDiscordAppId("")
+            SetRichPresence("")
+        end)
+        toast("success", "Misc", "Discord Name Hidden")
     end,
     toggle_off = function()
         State.hide_discord = false
-        Omen.send({ action = "syncState", states = { hide_discord = false } })
+        stopTick("hide_discord")
+        toast("info", "Misc", "Discord Name Visible")
     end,
 })
 reg("customtrig", { input = function(v) State.__customtrig = tostring(v or "") end })
