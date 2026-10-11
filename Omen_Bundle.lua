@@ -7945,7 +7945,6 @@ reg("rage", {
 reg("silentaim", {
     toggle_on = function()
         State.silentaim = true
-        rebuildAimbotCfg()
         _G.__ShadowSilentAim = true
         SharkAPI.InjectSafe("any", [[
             _G.__ShadowSilentAim = true
