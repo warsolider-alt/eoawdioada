@@ -8547,8 +8547,8 @@ reg("veh_clean", { click = function()
     if v then SetVehicleDirtLevel(v, 0.0); toast("info", "Omen", "Cleaned") end
 end })
 reg("veh_spawn_in", { input = function(v) State.__vehspawn = tostring(v or "") end })
-reg("veh_spawn", { click = function()
-    local model = State.vehmodel or State.__vehspawn or ""
+reg("veh_spawn", { click = function(v)
+    local model = (type(v) == "string" and v ~= "" and v) or State.vehmodel or State.__vehspawn or ""
     if model == "" then toast("info", "Omen", "Enter a model"); return end
     if ReaperV4Detected then toast("failure", "Vehicles", "Can't spawn on Reaper servers"); return end
     if State.delprev then

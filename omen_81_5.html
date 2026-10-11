@@ -4141,6 +4141,11 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                     sendAction({ action:"btn", id:b.id, v:(State.inputs.cfg_name || "").trim() });
                     return;
                 }
+                if (b.id === "spawnveh" || b.id === "veh_spawn") {
+                    sendAction({ action:"btn", id:b.id, v:(State.inputs.vehmodel || "").trim() });
+                    if (!b.quiet) toast("success", "Omen", b.label);
+                    return;
+                }
                 if (window.__omFocusedInput && window.__omFocusedInput.blur) { window.__omFocusedInput.blur(); }
                 try {
                     document.querySelectorAll('[data-inp-id]').forEach(function(inp){
