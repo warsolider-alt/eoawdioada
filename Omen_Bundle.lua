@@ -7891,267 +7891,122 @@ reg("aim_preset", { seg = function(v)
         smoothing_enabled = cfg.smoothing_enabled, smoothing_x = cfg.smoothing_x,
         smoothing_y = cfg.smoothing_y, rage = cfg.rage,
     }})
-    -- Rage flag is live; push it into the running aimbot immediately
-    SharkAPI.InjectSafe("any", "_G.__ShadowAimbotRage = " .. tostring(cfg.rage))
-    -- If aimbot is already running, re-arm it so the new cfg snapshot applies
-    if State.aimbot and Omen.Features.aimbot then
-        call(Omen.Features.aimbot.toggle_off)
-        call(Omen.Features.aimbot.toggle_on)
-        State.aimbot = true
-        sendToUi({ action = "syncState", states = { aimbot = true } })
-    end
     toast("success", "Aimbot", v .. " preset applied")
 end })
 reg("rage", {
-    toggle_on  = function()
-        State.rage = true
-        SharkAPI.InjectSafe("any", "_G.__ShadowAimbotRage = true")
-        toast("success", "Aimbot", "Rage ON")
-    end,
-    toggle_off = function()
-        State.rage = false
-        _G.__ShadowAimbotRage = false
-        SharkAPI.InjectSafe("any", "_G.__ShadowAimbotRage = false")
-        toast("info", "Aimbot", "Rage OFF")
-    end,
+    toggle_on  = function() State.rage = true;  toast("success", "Aimbot", "Rage ON")  end,
+    toggle_off = function() State.rage = false; toast("info", "Aimbot", "Rage OFF") end,
 })
 reg("silentaim", {
-    toggle_on = function()
-        State.silentaim = true
-        _G.__ShadowSilentAim = true
-        SharkAPI.InjectSafe("any", [[
-            _G.__ShadowSilentAim = true
-            if _G.__ShadowSilentAimRunning then return end
-            _G.__ShadowSilentAimRunning = true
-            CreateThread(function()
-                while _G.__ShadowSilentAim do
-                    Wait(0)
-                    local cfg = _G.__ShadowAimbotCfg or {}
-                    local selfPed = PlayerPedId()
-                    if IsPedShooting(selfPed) then
-                        local cam = GetGameplayCamCoord()
-                        local rot = GetGameplayCamRot(2)
-                        local pitch = math.rad(rot.x)
-                        local yaw = math.rad(rot.z)
-                        local fX = -math.sin(yaw) * math.cos(pitch)
-                        local fY =  math.cos(yaw) * math.cos(pitch)
-                        local fZ =  math.sin(pitch)
-                        local maxDist = cfg.distCheck and cfg.maxDist or 999.0
-                        local fovCos  = math.cos(math.rad(cfg.fov or 10))
-                        local bestPos, bestAngle = nil, math.huge
-                        for _, pid in ipairs(GetActivePlayers() or {}) do
-                            local isFriend = cfg.useFriends and cfg.friends and cfg.friends[GetPlayerServerId(pid)]
-                            if pid ~= PlayerId() and not isFriend then
-                                local tp = GetPlayerPed(pid)
-                                if tp ~= 0 and DoesEntityExist(tp)
-                                   and (not cfg.deadCheck or not IsEntityDead(tp))
-                                   and (not cfg.invCheck or IsEntityVisible(tp)) then
-                                    local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
-                                    local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
-                                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-                                    if dist <= maxDist and dist > 0.0 then
-                                        local dot = (dx*fX + dy*fY + dz*fZ) / dist
-                                        if (not cfg.fovCheck) or dot >= fovCos then
-                                            local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
-                                            if angle < bestAngle then bestAngle = angle; bestPos = h end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        if cfg.targetPeds then
-                            for _, tp in ipairs(GetGamePool("CPed") or {}) do
-                                if tp ~= selfPed and DoesEntityExist(tp) and not IsPedAPlayer(tp)
-                                   and (not cfg.deadCheck or not IsEntityDead(tp))
-                                   and (not cfg.invCheck or IsEntityVisible(tp)) then
-                                    local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
-                                    local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
-                                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-                                    if dist <= maxDist and dist > 0.0 then
-                                        local dot = (dx*fX + dy*fY + dz*fZ) / dist
-                                        if (not cfg.fovCheck) or dot >= fovCos then
-                                            local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
-                                            if angle < bestAngle then bestAngle = angle; bestPos = h end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        if bestPos then
-                            local weapon = GetSelectedPedWeapon(selfPed)
-                            ShootSingleBulletBetweenCoords(
-                                cam.x, cam.y, cam.z,
-                                bestPos.x, bestPos.y, bestPos.z,
-                                200, true, weapon, selfPed, true, true, 200.0
-                            )
-                        end
-                    end
-                end
-                _G.__ShadowSilentAimRunning = false
-            end)
-        ]])
-        toast("success", "Aimbot", "Silent Aim ON")
-    end,
-    toggle_off = function()
-        State.silentaim = false
-        _G.__ShadowSilentAim = false
-        SharkAPI.InjectSafe("any", "_G.__ShadowSilentAim = false; _G.__ShadowSilentAimRunning = false")
-        toast("info", "Aimbot", "Silent Aim OFF")
-    end,
+    toggle_on  = function() State.silentaim = true;  toast("success", "Aimbot", "Silent Aim ON")  end,
+    toggle_off = function() State.silentaim = false; toast("info", "Aimbot", "Silent Aim OFF") end,
 })
--- Rebuild + re-inject the aimbot cfg live, so changing smoothing/fov/checks while
--- aimbot is ON actually takes effect (updates _G.__ShadowAimbotCfg in the inject env).
-local function friendsLiteral()
-    local parts = {}
-    for sid in pairs(State._friends or {}) do
-        if tonumber(sid) then parts[#parts + 1] = ("[%d]=true"):format(tonumber(sid)) end
-    end
-    return "{" .. table.concat(parts, ",") .. "}"
-end
-local function rebuildAimbotCfg()
-    if not (Omen.State.aimbot or Omen.State.silentaim or Omen.State.triggerbot) then return end
-    local cfg = string.format(
-            "_G.__ShadowAimbotCfg = {fov=%d,fovCheck=%s,maxDist=%d,distCheck=%s,deadCheck=%s,invCheck=%s,smoothEn=%s,smX=%d,smY=%d,useFriends=%s,targetPeds=%s,visCheck=%s,friends=%s}\n_G.__ShadowAimbotRage = %s",
-            State.fov_size or 10,
-            tostring(State.fov_check and true or false),
-            State.max_distance or 250,
-            tostring(State.distance_check and true or false),
-            tostring(State.dead_check and true or false),
-            tostring(State.invisible_check and true or false),
-            tostring(State.smoothing_enabled and true or false),
-            State.smoothing_x or 25,
-            State.smoothing_y or 25,
-            tostring(State.use_friends and true or false),
-            tostring(State.target_peds and true or false),
-            tostring(State.fov_visible and true or false),
-            friendsLiteral(),
-            tostring(State.rage and true or false)
-        )
-    SharkAPI.InjectSafe("any", cfg)
-end
+local function rebuildAimbotCfg() end
 Omen.rebuildAimbotCfg = rebuildAimbotCfg
 
 reg("aimbot", {
     toggle_on = function()
         State.aimbot = true
         if type(EnableAimbotHooks) == "function" then EnableAimbotHooks() end
-        -- Shadow 1:1: build cfg snapshot + inject the aim tick into "any" resource env
-        local cfg = string.format(
-            "_G.__ShadowAimbotCfg = {fov=%d,fovCheck=%s,maxDist=%d,distCheck=%s,deadCheck=%s,invCheck=%s,smoothEn=%s,smX=%d,smY=%d,useFriends=%s,targetPeds=%s,visCheck=%s,friends=%s}\n_G.__ShadowAimbotRage = %s",
-            State.fov_size or 10,
-            tostring(State.fov_check and true or false),
-            State.max_distance or 250,
-            tostring(State.distance_check and true or false),
-            tostring(State.dead_check and true or false),
-            tostring(State.invisible_check and true or false),
-            tostring(State.smoothing_enabled and true or false),
-            State.smoothing_x or 25,
-            State.smoothing_y or 25,
-            tostring(State.use_friends and true or false),
-            tostring(State.target_peds and true or false),
-            tostring(State.fov_visible and true or false),
-            friendsLiteral(),
-            tostring(State.rage and true or false)
-        )
-        SharkAPI.InjectSafe("any", cfg .. "\n" .. [[
-            if _G.__ShadowAimbotRunning then return end
-            _G.__ShadowAimbotRunning = true
-            _G.__ShadowAimbotActive  = true
-            -- Lua 5.4 removed math.atan2; without this shim the aim thread dies
-            -- on first target and the Running guard blocks every later toggle.
-            local atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
-            CreateThread(function()
-                while _G.__ShadowAimbotActive do
-                    Wait(0)
-                    local cfg  = _G.__ShadowAimbotCfg or {}
-                    local rage = _G.__ShadowAimbotRage
-                    if IsControlPressed(0, 25) then
-                        local pp = PlayerPedId()
-                        local cam = GetGameplayCamCoord(); local rot = GetGameplayCamRot(2)
-                        local pitch = math.rad(rot.x); local yaw = math.rad(rot.z)
-                        local fX = -math.sin(yaw) * math.cos(pitch)
-                        local fY =  math.cos(yaw) * math.cos(pitch)
-                        local fZ =  math.sin(pitch)
-                        local maxDist = cfg.distCheck and cfg.maxDist or 999.0
-                        local fovCos  = math.cos(math.rad(cfg.fov or 10))
-                        local bestPos, bestAngle = nil, math.huge
-                        for _, pid in ipairs(GetActivePlayers() or {}) do
-                            local isFriend = cfg.useFriends and cfg.friends and cfg.friends[GetPlayerServerId(pid)]
-                            if pid ~= PlayerId() and not isFriend then
-                                local tp = GetPlayerPed(pid)
-                                local visOk = true
-                                if not rage and cfg.visCheck and tp ~= 0 and DoesEntityExist(tp) then
-                                    -- real wall check: raycast from camera to target head, ignore
-                                    -- self + target peds. Any world/object hit = blocked (behind wall).
-                                    local camPos = GetGameplayCamCoord()
-                                    local hh = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
-                                    local ray = StartShapeTestRay(camPos.x, camPos.y, camPos.z, hh.x, hh.y, hh.z, 1 + 16, tp, 7)
-                                    local _, hit, _, _, hitEnt = GetShapeTestResult(ray)
-                                    if hit == 1 and hitEnt ~= tp then visOk = false end
-                                end
-                                if tp ~= 0 and DoesEntityExist(tp) and (not cfg.deadCheck or not IsEntityDead(tp))
-                                   and (rage or not cfg.invCheck or IsEntityVisible(tp))
-                                   and visOk then
-                                    local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
-                                    local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
-                                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-                                    if dist <= maxDist and dist > 0.0 then
-                                        local dot = (dx*fX + dy*fY + dz*fZ) / dist
-                                        if (not cfg.fovCheck) or dot >= fovCos then
-                                            local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
-                                            if angle < bestAngle then bestAngle = angle; bestPos = h end
-                                        end
-                                    end
+        local atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
+        startTick("aimbot", 0, function()
+            local rage      = State.rage
+            local fov        = State.fov_size or 10
+            local fovCheck   = State.fov_check
+            local maxDist    = State.distance_check and (State.max_distance or 250) or 999.0
+            local fovCos     = math.cos(math.rad(fov))
+            local deadCheck  = State.dead_check
+            local invCheck   = State.invisible_check
+            local smoothEn   = State.smoothing_enabled
+            local smX        = State.smoothing_x or 25
+            local smY        = State.smoothing_y or 25
+            local useFriends = State.use_friends
+            local friends    = State._friends or {}
+            local targetPeds = State.target_peds
+            local visCheck   = State.fov_visible
+            local pp         = PlayerPedId()
+            local cam        = GetGameplayCamCoord()
+            local rot        = GetGameplayCamRot(2)
+            local pitch      = math.rad(rot.x)
+            local yaw        = math.rad(rot.z)
+            local fX         = -math.sin(yaw) * math.cos(pitch)
+            local fY         =  math.cos(yaw) * math.cos(pitch)
+            local fZ         =  math.sin(pitch)
+            local bestPos, bestAngle = nil, math.huge
+            if IsControlPressed(0, 25) or State.silentaim then
+                for _, pid in ipairs(GetActivePlayers() or {}) do
+                    local isFriend = useFriends and friends[GetPlayerServerId(pid)]
+                    if pid ~= PlayerId() and not isFriend then
+                        local tp = GetPlayerPed(pid)
+                        local visOk = true
+                        if not rage and visCheck and tp ~= 0 and DoesEntityExist(tp) then
+                            local hh = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local ray = StartShapeTestRay(cam.x, cam.y, cam.z, hh.x, hh.y, hh.z, 1 + 16, tp, 7)
+                            local _, hit, _, _, hitEnt = GetShapeTestResult(ray)
+                            if hit == 1 and hitEnt ~= tp then visOk = false end
+                        end
+                        if tp ~= 0 and DoesEntityExist(tp) and (not deadCheck or not IsEntityDead(tp))
+                           and (rage or not invCheck or IsEntityVisible(tp))
+                           and visOk then
+                            local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
+                            local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+                            if dist <= maxDist and dist > 0.0 then
+                                local dot = (dx*fX + dy*fY + dz*fZ) / dist
+                                if (not fovCheck) or dot >= fovCos then
+                                    local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
+                                    if angle < bestAngle then bestAngle = angle; bestPos = h end
                                 end
                             end
-                        end
-                        if cfg.targetPeds then
-                            for _, tp in ipairs(GetGamePool("CPed") or {}) do
-                                if tp ~= pp and DoesEntityExist(tp) and not IsPedAPlayer(tp)
-                                   and (not cfg.deadCheck or not IsEntityDead(tp))
-                                   and (rage or not cfg.invCheck or IsEntityVisible(tp)) then
-                                    local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
-                                    local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
-                                    local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
-                                    if dist <= maxDist and dist > 0.0 then
-                                        local dot = (dx*fX + dy*fY + dz*fZ) / dist
-                                        if (not cfg.fovCheck) or dot >= fovCos then
-                                            local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
-                                            if angle < bestAngle then bestAngle = angle; bestPos = h end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                        if bestPos then
-                            local dx2, dy2, dz2 = bestPos.x - cam.x, bestPos.y - cam.y, bestPos.z - cam.z
-                            local desiredYaw   = math.deg(atan2(-dx2, dy2))
-                            local desiredPitch = math.deg(atan2(dz2, math.sqrt(dx2*dx2 + dy2*dy2)))
-                            local tX = rage and 1.0 or ((cfg.smoothEn and (cfg.smX or 25) or 100) / 100.0)
-                            local tY = rage and 1.0 or ((cfg.smoothEn and (cfg.smY or 25) or 100) / 100.0)
-                            local newPitch = rot.x + (desiredPitch - rot.x) * tY
-                            local diff = ((desiredYaw - rot.z + 540) % 360) - 180
-                            local newYaw  = rot.z + diff * tX
-                            SetGameplayCamRelativeHeading(newYaw - GetEntityHeading(pp))
-                            SetGameplayCamRelativePitch(newPitch, 1.0)
                         end
                     end
                 end
-                _G.__ShadowAimbotRunning = false
-            end)
-        ]])
+                if targetPeds then
+                    for _, tp in ipairs(GetGamePool("CPed") or {}) do
+                        if tp ~= pp and DoesEntityExist(tp) and not IsPedAPlayer(tp)
+                           and (not deadCheck or not IsEntityDead(tp))
+                           and (rage or not invCheck or IsEntityVisible(tp)) then
+                            local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
+                            local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
+                            if dist <= maxDist and dist > 0.0 then
+                                local dot = (dx*fX + dy*fY + dz*fZ) / dist
+                                if (not fovCheck) or dot >= fovCos then
+                                    local angle = math.acos(math.max(-1.0, math.min(1.0, dot)))
+                                    if angle < bestAngle then bestAngle = angle; bestPos = h end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            if bestPos and State.silentaim and IsPedShooting(pp) then
+                local weapon = GetSelectedPedWeapon(pp)
+                ShootSingleBulletBetweenCoords(
+                    cam.x, cam.y, cam.z,
+                    bestPos.x, bestPos.y, bestPos.z,
+                    200, true, weapon, pp, true, true, 200.0
+                )
+            end
+            if bestPos and IsControlPressed(0, 25) then
+                local dx2, dy2, dz2 = bestPos.x - cam.x, bestPos.y - cam.y, bestPos.z - cam.z
+                local desiredYaw   = math.deg(atan2(-dx2, dy2))
+                local desiredPitch = math.deg(atan2(dz2, math.sqrt(dx2*dx2 + dy2*dy2)))
+                local tX = rage and 1.0 or ((smoothEn and smX or 100) / 100.0)
+                local tY = rage and 1.0 or ((smoothEn and smY or 100) / 100.0)
+                local newPitch = rot.x + (desiredPitch - rot.x) * tY
+                local diff = ((desiredYaw - rot.z + 540) % 360) - 180
+                local newYaw  = rot.z + diff * tX
+                SetGameplayCamRelativeHeading(newYaw - GetEntityHeading(pp))
+                SetGameplayCamRelativePitch(newPitch, 1.0)
+            end
+        end)
         toast("success", "Aimbot", "Aimbot ON")
     end,
     toggle_off = function()
         State.aimbot = false
-        -- Also clear Running: if the injected thread died from an error it never
-        -- cleared it, and the re-entry guard would block the next toggle_on forever.
-        -- Fire into every known resource env so the flag is cleared even if "any" env differs
-        SharkAPI.InjectSafe("any", "_G.__ShadowAimbotActive = false; _G.__ShadowAimbotRunning = false")
-        _G.__ShadowAimbotActive = false
-        _G.__ShadowAimbotRunning = false
+        stopTick("aimbot")
         if type(DisableAimbotHooks) == "function" then DisableAimbotHooks() end
-        -- Force-restore camera control in case hooks left it locked
         if type(SetGameplayCamRelativeHeading) == "function" then
             SetGameplayCamRelativeHeading(0.0)
         end
