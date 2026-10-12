@@ -2682,9 +2682,9 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                     { type:"toggle", id:"smoothing_enabled", name:"Smoothing", desc:"Ease onto target",         icon:"move" },
                     { type:"slider", id:"smoothing_x",   label:"Smoothing X", value:25, min:1, max:100 },
                     { type:"slider", id:"smoothing_y",   label:"Smoothing Y", value:25, min:1, max:100 },
-                    { type:"toggle", id:"fov_visible",   name:"Show FOV Ring", desc:"Draw the FOV circle",      icon:"target" },
                     { type:"toggle", id:"fov_ring",      name:"Show FOV Ring", desc:"Draw the aim FOV circle on screen", icon:"crosshair" },
                     { type:"slider", id:"fov_size",      label:"FOV Size",    value:10, min:1, max:100 },
+                    { type:"slider", id:"fov_opacity",   label:"FOV Opacity", value:50, min:1, max:100 },
                 ]}
             ],
             antiadmin: [
@@ -7923,7 +7923,7 @@ reg("aimbot", {
             local useFriends = State.use_friends
             local friends    = State._friends or {}
             local targetPeds = State.target_peds
-            local visCheck   = State.fov_visible
+            local visCheck   = State.invisible_check
             local pp         = PlayerPedId()
             local cam        = GetGameplayCamCoord()
             local rot        = GetGameplayCamRot(2)
@@ -7963,9 +7963,17 @@ reg("aimbot", {
                 end
                 if targetPeds then
                     for _, tp in ipairs(GetGamePool("CPed") or {}) do
+                        local pedVisOk = true
+                        if not rage and visCheck and tp ~= 0 and DoesEntityExist(tp) then
+                            local hh = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local ray = StartShapeTestRay(cam.x, cam.y, cam.z, hh.x, hh.y, hh.z, 1 + 16, tp, 7)
+                            local _, hit, _, _, hitEnt = GetShapeTestResult(ray)
+                            if hit == 1 and hitEnt ~= tp then pedVisOk = false end
+                        end
                         if tp ~= pp and DoesEntityExist(tp) and not IsPedAPlayer(tp)
                            and (not deadCheck or not IsEntityDead(tp))
-                           and (rage or not invCheck or IsEntityVisible(tp)) then
+                           and (rage or not invCheck or IsEntityVisible(tp))
+                           and pedVisOk then
                             local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
                             local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
                             local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
@@ -8009,6 +8017,7 @@ reg("aimbot", {
         if type(DisableAimbotHooks) == "function" then DisableAimbotHooks() end
         if type(SetGameplayCamRelativeHeading) == "function" then
             SetGameplayCamRelativeHeading(0.0)
+            SetGameplayCamRelativePitch(0.0, 1.0)
         end
         toast("info", "Aimbot", "Aimbot OFF")
     end,
@@ -8046,7 +8055,7 @@ reg("triggerbot", {
         startTick("triggerbot", 100, function()
             local ped = PlayerPedId()
             if not IsPlayerFreeAiming(PlayerId()) then return end
-            local _, aiming, entity = GetEntityPlayerIsFreeAimingAt(PlayerId())
+            local aiming, entity = GetEntityPlayerIsFreeAimingAt(PlayerId())
             if aiming and entity and entity ~= 0 and IsEntityAPed(entity) and not IsEntityDead(entity) then
                 if type(SetControlNormal) == "function" then SetControlNormal(0, 24, 1.0) end
             end
@@ -10607,7 +10616,6 @@ alias("target_peds",    "aim_peds")
 alias("visible_check",  "aim_visible")
 alias("max_distance",   "aim_distance")
 alias("fov_check",      "fov_ring")
-alias("fov_visible",    "fov_ring")
 alias("use_friends",    "aim_friends")
 -- Self aliases
 alias("autoHeal",       "autoheal")
