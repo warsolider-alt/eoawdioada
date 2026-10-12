@@ -6496,116 +6496,99 @@ reg("lasereyes", {
         State.lasereyes = true
         _G.__LaserEyesPrevSpoof = _G.spoofWeaponEnabled
         if not _G.spoofWeaponEnabled and EnableSpoofWeapon then EnableSpoofWeapon(); _G.spoofWeaponEnabled = true end
-        -- Shadow 1:1 (byte-for-byte): weapon-type laser with native feed notifications.
-        SharkAPI.InjectSafe("any", [==[
-                    local GTA = {
-                        WEAPON_PISTOL=1,WEAPON_PISTOL_MK2=1,WEAPON_COMBATPISTOL=1,WEAPON_APPISTOL=1,WEAPON_PISTOL50=1,
-                        WEAPON_SNSPISTOL=1,WEAPON_SNSPISTOL_MK2=1,WEAPON_HEAVYPISTOL=1,WEAPON_VINTAGEPISTOL=1,WEAPON_FLAREGUN=1,
-                        WEAPON_MARKSMANPISTOL=1,WEAPON_REVOLVER=1,WEAPON_REVOLVER_MK2=1,WEAPON_DOUBLEACTION=1,WEAPON_RAYPISTOL=1,
-                        WEAPON_CERAMICPISTOL=1,WEAPON_NAVYREVOLVER=1,WEAPON_GADGETPISTOL=1,WEAPON_STUNGUN=1,WEAPON_MICROSMG=1,
-                        WEAPON_SMG=1,WEAPON_SMG_MK2=1,WEAPON_ASSAULTSMG=1,WEAPON_COMBATPDW=1,WEAPON_MACHINEPISTOL=1,
-                        WEAPON_MINISMG=1,WEAPON_RAYCARBINE=1,WEAPON_ASSAULTRIFLE=1,WEAPON_ASSAULTRIFLE_MK2=1,
-                        WEAPON_CARBINERIFLE=1,WEAPON_CARBINERIFLE_MK2=1,WEAPON_ADVANCEDRIFLE=1,WEAPON_SPECIALCARBINE=1,
-                        WEAPON_SPECIALCARBINE_MK2=1,WEAPON_BULLPUPRIFLE=1,WEAPON_BULLPUPRIFLE_MK2=1,WEAPON_COMPACTRIFLE=1,
-                        WEAPON_MILITARYRIFLE=1,WEAPON_HEAVYRIFLE=1,WEAPON_TACTICALRIFLE=1,WEAPON_BATTLERIFLE=1,
-                        WEAPON_MG=1,WEAPON_COMBATMG=1,WEAPON_COMBATMG_MK2=1,WEAPON_GUSENBERG=1,WEAPON_PUMPSHOTGUN=1,
-                        WEAPON_PUMPSHOTGUN_MK2=1,WEAPON_SAWNOFFSHOTGUN=1,WEAPON_ASSAULTSHOTGUN=1,WEAPON_BULLPUPSHOTGUN=1,
-                        WEAPON_HEAVYSHOTGUN=1,WEAPON_DBSHOTGUN=1,WEAPON_AUTOSHOTGUN=1,WEAPON_COMBATSHOTGUN=1,
-                        WEAPON_SNIPERRIFLE=1,WEAPON_HEAVYSNIPER=1,WEAPON_HEAVYSNIPER_MK2=1,WEAPON_MARKSMANRIFLE=1,
-                        WEAPON_MARKSMANRIFLE_MK2=1,WEAPON_PRECISIONRIFLE=1,WEAPON_RPG=1,WEAPON_GRENADELAUNCHER=1,
-                        WEAPON_GRENADELAUNCHER_SMOKE=1,WEAPON_MINIGUN=1,WEAPON_FIREWORK=1,WEAPON_RAILGUN=1,
-                        WEAPON_HOMINGLAUNCHER=1,WEAPON_COMPACTLAUNCHER=1,WEAPON_RAYMINIGUN=1,WEAPON_GRENADE=1,
-                        WEAPON_STICKYBOMB=1,WEAPON_PROXMINE=1,WEAPON_PIPEBOMB=1,WEAPON_MOLOTOV=1,WEAPON_KNIFE=1,
-                        WEAPON_KNUCKLE=1,WEAPON_NIGHTSTICK=1,WEAPON_HAMMER=1,WEAPON_BAT=1,WEAPON_GOLFCLUB=1,
-                        WEAPON_CROWBAR=1,WEAPON_BOTTLE=1,WEAPON_DAGGER=1,WEAPON_HATCHET=1,WEAPON_MACHETE=1,
-                        WEAPON_FLASHLIGHT=1,WEAPON_SWITCHBLADE=1,WEAPON_POOLCUE=1,WEAPON_WRENCH=1,WEAPON_BATTLEAXE=1,
-                        WEAPON_STONE_HATCHET=1,WEAPON_UNARMED=1,WEAPON_BALL=1,WEAPON_SMOKEGRENADE=1,WEAPON_TEARGAS=1,
-                        WEAPON_BZGAS=1,WEAPON_SNOWBALL=1,WEAPON_SNOWLAUNCHER=1,WEAPON_FLARE=1,WEAPON_FIREEXTINGUISHER=1,WEAPON_PETROLCAN=1,
-                        WEAPON_HAZARDCAN=1,WEAPON_FERTILIZERCAN=1,WEAPON_METALDETECTOR=1,WEAPON_EMPLAUNCHER=1,WEAPON_MUSKET=1,
-                    }
-                    local found = {}
-                    for i = 0, GetNumResources() - 1 do
-                        local res = GetResourceByFindIndex(i)
-                        if res and res ~= "" and GetResourceState(res) == "started" then
-                            for _, file in ipairs({"config.lua","weapons.lua","items.lua","main.lua","shared/weapons.lua","client/weapons.lua","data/weapons.lua","shared/items.lua","config/weapons.lua","configs/weapons.lua"}) do
-                                local c = LoadResourceFile(res, file)
-                                if c then
-                                    for w in c:gmatch('"([WEAPON_][%w_]+)"') do if w:find("WEAPON_") and not GTA[w] then found[w]=true end end
-                                    for w in c:gmatch("'([WEAPON_][%w_]+)'") do if w:find("WEAPON_") and not GTA[w] then found[w]=true end end
-                                end
-                            end
-                        end
+        local GTA = {
+            WEAPON_PISTOL=1,WEAPON_PISTOL_MK2=1,WEAPON_COMBATPISTOL=1,WEAPON_APPISTOL=1,WEAPON_PISTOL50=1,
+            WEAPON_SNSPISTOL=1,WEAPON_SNSPISTOL_MK2=1,WEAPON_HEAVYPISTOL=1,WEAPON_VINTAGEPISTOL=1,WEAPON_FLAREGUN=1,
+            WEAPON_MARKSMANPISTOL=1,WEAPON_REVOLVER=1,WEAPON_REVOLVER_MK2=1,WEAPON_DOUBLEACTION=1,WEAPON_RAYPISTOL=1,
+            WEAPON_CERAMICPISTOL=1,WEAPON_NAVYREVOLVER=1,WEAPON_GADGETPISTOL=1,WEAPON_STUNGUN=1,WEAPON_MICROSMG=1,
+            WEAPON_SMG=1,WEAPON_SMG_MK2=1,WEAPON_ASSAULTSMG=1,WEAPON_COMBATPDW=1,WEAPON_MACHINEPISTOL=1,
+            WEAPON_MINISMG=1,WEAPON_RAYCARBINE=1,WEAPON_ASSAULTRIFLE=1,WEAPON_ASSAULTRIFLE_MK2=1,
+            WEAPON_CARBINERIFLE=1,WEAPON_CARBINERIFLE_MK2=1,WEAPON_ADVANCEDRIFLE=1,WEAPON_SPECIALCARBINE=1,
+            WEAPON_SPECIALCARBINE_MK2=1,WEAPON_BULLPUPRIFLE=1,WEAPON_BULLPUPRIFLE_MK2=1,WEAPON_COMPACTRIFLE=1,
+            WEAPON_MILITARYRIFLE=1,WEAPON_HEAVYRIFLE=1,WEAPON_TACTICALRIFLE=1,WEAPON_BATTLERIFLE=1,
+            WEAPON_MG=1,WEAPON_COMBATMG=1,WEAPON_COMBATMG_MK2=1,WEAPON_GUSENBERG=1,WEAPON_PUMPSHOTGUN=1,
+            WEAPON_PUMPSHOTGUN_MK2=1,WEAPON_SAWNOFFSHOTGUN=1,WEAPON_ASSAULTSHOTGUN=1,WEAPON_BULLPUPSHOTGUN=1,
+            WEAPON_HEAVYSHOTGUN=1,WEAPON_DBSHOTGUN=1,WEAPON_AUTOSHOTGUN=1,WEAPON_COMBATSHOTGUN=1,
+            WEAPON_SNIPERRIFLE=1,WEAPON_HEAVYSNIPER=1,WEAPON_HEAVYSNIPER_MK2=1,WEAPON_MARKSMANRIFLE=1,
+            WEAPON_MARKSMANRIFLE_MK2=1,WEAPON_PRECISIONRIFLE=1,WEAPON_RPG=1,WEAPON_GRENADELAUNCHER=1,
+            WEAPON_GRENADELAUNCHER_SMOKE=1,WEAPON_MINIGUN=1,WEAPON_FIREWORK=1,WEAPON_RAILGUN=1,
+            WEAPON_HOMINGLAUNCHER=1,WEAPON_COMPACTLAUNCHER=1,WEAPON_RAYMINIGUN=1,WEAPON_GRENADE=1,
+            WEAPON_STICKYBOMB=1,WEAPON_PROXMINE=1,WEAPON_PIPEBOMB=1,WEAPON_MOLOTOV=1,WEAPON_KNIFE=1,
+            WEAPON_KNUCKLE=1,WEAPON_NIGHTSTICK=1,WEAPON_HAMMER=1,WEAPON_BAT=1,WEAPON_GOLFCLUB=1,
+            WEAPON_CROWBAR=1,WEAPON_BOTTLE=1,WEAPON_DAGGER=1,WEAPON_HATCHET=1,WEAPON_MACHETE=1,
+            WEAPON_FLASHLIGHT=1,WEAPON_SWITCHBLADE=1,WEAPON_POOLCUE=1,WEAPON_WRENCH=1,WEAPON_BATTLEAXE=1,
+            WEAPON_STONE_HATCHET=1,WEAPON_UNARMED=1,WEAPON_BALL=1,WEAPON_SMOKEGRENADE=1,WEAPON_TEARGAS=1,
+            WEAPON_BZGAS=1,WEAPON_SNOWBALL=1,WEAPON_SNOWLAUNCHER=1,WEAPON_FLARE=1,WEAPON_FIREEXTINGUISHER=1,WEAPON_PETROLCAN=1,
+            WEAPON_HAZARDCAN=1,WEAPON_FERTILIZERCAN=1,WEAPON_METALDETECTOR=1,WEAPON_EMPLAUNCHER=1,WEAPON_MUSKET=1,
+        }
+        local found = {}
+        for i = 0, GetNumResources() - 1 do
+            local res = GetResourceByFindIndex(i)
+            if res and res ~= "" and GetResourceState(res) == "started" then
+                for _, file in ipairs({"config.lua","weapons.lua","items.lua","main.lua","shared/weapons.lua","client/weapons.lua","data/weapons.lua","shared/items.lua","config/weapons.lua","configs/weapons.lua"}) do
+                    local c = LoadResourceFile(res, file)
+                    if c then
+                        for w in c:gmatch('"([WEAPON_][%w_]+)"') do if w:find("WEAPON_") and not GTA[w] then found[w]=true end end
+                        for w in c:gmatch("'([WEAPON_][%w_]+)'") do if w:find("WEAPON_") and not GTA[w] then found[w]=true end end
                     end
-                    local list = {}
-                    for w in pairs(found) do list[#list+1] = w end
-                    if #list == 0 then list = {"WEAPON_APPISTOL"} end
-                    _G.__LaserWeaponList = list
-                    local picked = list[math.random(#list)]
-                    _G.__LaserWeaponHash = GetHashKey(picked)
-                    BeginTextCommandThefeedPost("STRING")
-                    AddTextComponentSubstringPlayerName("~p~Shadow~s~ Laser weapon: ~b~" .. picked)
-                    EndTextCommandThefeedPostTicker(false, false)
-                    CreateThread(function()
-                        while _G.__LaserEyesActive ~= false do
-                            Wait(10000)
-                            if not _G.__LaserEyesActive then break end
-                            local l = _G.__LaserWeaponList
-                            if l and #l > 0 then
-                                local nxt = l[math.random(#l)]
-                                _G.__LaserWeaponHash = GetHashKey(nxt)
-                                BeginTextCommandThefeedPost("STRING")
-                                AddTextComponentSubstringPlayerName("~p~Shadow~s~ Laser rotated: ~b~" .. nxt)
-                                EndTextCommandThefeedPostTicker(false, false)
-                            end
-                        end
-                    end)
-                ]==])
-        SharkAPI.InjectSafe("any", [==[
-                    _G.__LaserEyesActive = true
-                    local wh = _G.__LaserWeaponHash or GetHashKey("WEAPON_APPISTOL")
-                    local lastShot = 0
-                    local lastSwap = GetGameTimer()
-                    CreateThread(function()
-                        while _G.__LaserEyesActive do
-                            Wait(0)
-                            local ped      = PlayerPedId()
-                            local camCoord = GetGameplayCamCoord()
-                            local rot      = GetGameplayCamRot(2)
-                            local rx       = math.rad(rot.x)
-                            local rz       = math.rad(rot.z)
-                            local dirX     = -math.sin(rz) * math.abs(math.cos(rx))
-                            local dirY     =  math.cos(rz) * math.abs(math.cos(rx))
-                            local dirZ     =  math.sin(rx)
-                            local lEye     = GetPedBoneCoords(ped, 31086,  0.035, 0.05, 0.0)
-                            local rEye     = GetPedBoneCoords(ped, 31086, -0.035, 0.05, 0.0)
-                            local farX     = camCoord.x + dirX * 500.0
-                            local farY     = camCoord.y + dirY * 500.0
-                            local farZ     = camCoord.z + dirZ * 500.0
-                            local ray      = StartShapeTestRay(camCoord.x, camCoord.y, camCoord.z, farX, farY, farZ, -1, ped, 0)
-                            local _, hit, hitCoord = GetShapeTestResult(ray)
-                            local endX = (hit and hitCoord.x) or farX
-                            local endY = (hit and hitCoord.y) or farY
-                            local endZ = (hit and hitCoord.z) or farZ
-                            DrawLine(lEye.x, lEye.y, lEye.z, endX, endY, endZ, 255, 0, 0, 220)
-                            DrawLine(rEye.x, rEye.y, rEye.z, endX, endY, endZ, 255, 0, 0, 220)
-                            local now  = GetGameTimer()
-                            if now - lastSwap >= 10000 and _G.__LaserWeaponHash then
-                                wh = _G.__LaserWeaponHash; lastSwap = now
-                            end
-                            if IsControlPressed(0, 46) and now - lastShot >= 50 then
-                                lastShot = now
-                                ShootSingleBulletBetweenCoords(lEye.x,lEye.y,lEye.z, endX,endY,endZ, 250, false, wh, ped, true, false, -1.0)
-                                ShootSingleBulletBetweenCoords(rEye.x,rEye.y,rEye.z, endX,endY,endZ, 250, false, wh, ped, true, false, -1.0)
-                            end
-                        end
-                    end)
-                ]==])
+                end
+            end
+        end
+        local list = {}
+        for w in pairs(found) do list[#list+1] = w end
+        if #list == 0 then list = {"WEAPON_APPISTOL"} end
+        _G.__LaserWeaponList = list
+        local picked = list[math.random(#list)]
+        _G.__LaserWeaponHash = GetHashKey(picked)
+        toast("info", "Self", "Laser weapon: " .. picked)
+        startTick("lasereyes_rotate", 10000, function()
+            local l = _G.__LaserWeaponList
+            if l and #l > 0 then
+                local nxt = l[math.random(#l)]
+                _G.__LaserWeaponHash = GetHashKey(nxt)
+                toast("info", "Self", "Laser rotated: " .. nxt)
+            end
+        end)
+        local wh = _G.__LaserWeaponHash or GetHashKey("WEAPON_APPISTOL")
+        local lastShot = 0
+        local lastSwap = GetGameTimer()
+        startTick("lasereyes", 0, function()
+            local ped      = PlayerPedId()
+            local camCoord = GetGameplayCamCoord()
+            local rot      = GetGameplayCamRot(2)
+            local rx       = math.rad(rot.x)
+            local rz       = math.rad(rot.z)
+            local dirX     = -math.sin(rz) * math.abs(math.cos(rx))
+            local dirY     =  math.cos(rz) * math.abs(math.cos(rx))
+            local dirZ     =  math.sin(rx)
+            local lEye     = GetPedBoneCoords(ped, 31086,  0.035, 0.05, 0.0)
+            local rEye     = GetPedBoneCoords(ped, 31086, -0.035, 0.05, 0.0)
+            local farX     = camCoord.x + dirX * 500.0
+            local farY     = camCoord.y + dirY * 500.0
+            local farZ     = camCoord.z + dirZ * 500.0
+            local ray      = StartShapeTestRay(camCoord.x, camCoord.y, camCoord.z, farX, farY, farZ, -1, ped, 0)
+            local _, hit, hitCoord = GetShapeTestResult(ray)
+            local endX = (hit and hitCoord.x) or farX
+            local endY = (hit and hitCoord.y) or farY
+            local endZ = (hit and hitCoord.z) or farZ
+            DrawLine(lEye.x, lEye.y, lEye.z, endX, endY, endZ, 255, 0, 0, 220)
+            DrawLine(rEye.x, rEye.y, rEye.z, endX, endY, endZ, 255, 0, 0, 220)
+            local now  = GetGameTimer()
+            if now - lastSwap >= 10000 and _G.__LaserWeaponHash then
+                wh = _G.__LaserWeaponHash; lastSwap = now
+            end
+            if IsControlPressed(0, 46) and now - lastShot >= 50 then
+                lastShot = now
+                ShootSingleBulletBetweenCoords(lEye.x,lEye.y,lEye.z, endX,endY,endZ, 250, false, wh, ped, true, false, -1.0)
+                ShootSingleBulletBetweenCoords(rEye.x,rEye.y,rEye.z, endX,endY,endZ, 250, false, wh, ped, true, false, -1.0)
+            end
+        end)
         toast("success", "Self", "Laser Eyes: ON")
     end,
     toggle_off = function()
         State.lasereyes = false
-        _G.__LaserEyesActive = false
-        SharkAPI.InjectSafe("any", [[ _G.__LaserEyesActive = false ]])
+        stopTick("lasereyes")
+        stopTick("lasereyes_rotate")
         if not _G.__LaserEyesPrevSpoof and not State.spoofweapon and DisableSpoofWeapon then
             DisableSpoofWeapon(); _G.spoofWeaponEnabled = false
         end
@@ -8204,6 +8187,7 @@ reg("aim_autoshoot", {
 })
 reg("triggerbot", {
     toggle_on = function()
+        State.triggerbot = true
         startTick("triggerbot", 100, function()
             local ped = PlayerPedId()
             if not IsPlayerFreeAiming(PlayerId()) then return end
@@ -8213,7 +8197,7 @@ reg("triggerbot", {
             end
         end)
     end,
-    toggle_off = function() stopTick("triggerbot") end,
+    toggle_off = function() State.triggerbot = false; stopTick("triggerbot") end,
 })
 local Draw = SK.Drawing
 local function drawTextAt(x, y, text, r, g, b)
