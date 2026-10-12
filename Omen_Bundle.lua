@@ -7933,7 +7933,7 @@ reg("aimbot", {
             local fY         =  math.cos(yaw) * math.cos(pitch)
             local fZ         =  math.sin(pitch)
             local bestPos, bestAngle = nil, math.huge
-            if IsControlPressed(0, 25) or State.silentaim then
+            if IsControlPressed(0, 25) or State.silentaim or rage then
                 for _, pid in ipairs(GetActivePlayers() or {}) do
                     local isFriend = useFriends and friends[GetPlayerServerId(pid)]
                     if pid ~= PlayerId() and not isFriend then
@@ -7996,7 +7996,7 @@ reg("aimbot", {
                     200, true, weapon, pp, true, true, 200.0
                 )
             end
-            if bestPos and IsControlPressed(0, 25) then
+            if bestPos and (IsControlPressed(0, 25) or rage) then
                 local dx2, dy2, dz2 = bestPos.x - cam.x, bestPos.y - cam.y, bestPos.z - cam.z
                 local desiredYaw   = math.deg(atan2(-dx2, dy2))
                 local desiredPitch = math.deg(atan2(dz2, math.sqrt(dx2*dx2 + dy2*dy2)))
