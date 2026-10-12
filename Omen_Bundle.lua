@@ -6843,17 +6843,6 @@ reg("remove_crutch", { click = function()
 end })
 reg("revive", { click = function()
     local gs = GetResourceState
-    local reaperV4 = gs and gs("ReaperV4") == "started"
-    if reaperV4 then
-        local ped = PlayerPedId()
-        local c = GetEntityCoords(ped)
-        local h = GetEntityHeading(ped)
-        NetworkResurrectLocalPlayer(c.x, c.y, c.z, h, true, true)
-        ClearPedTasksImmediately(ped)
-        SetEntityHealth(ped, GetEntityMaxHealth(ped))
-        toast("success", "Omen", "Revive sent (native)")
-        return
-    end
     local fired = false
     local function try(res, code)
         if gs and gs(res) == "started" then SharkAPI.InjectSafe(res, code); fired = true end
@@ -6862,7 +6851,17 @@ reg("revive", { click = function()
         if gs and gs(res) == "started" then SharkAPI.InjectSafe("any", code); fired = true end
     end
     tryAny("fearx_redzone", [[ TriggerEvent('hospital:client:Revive') ]])
-    try("wasabi_ambulance", [[ TriggerEvent('wasabi_ambulance:revive') ]])
+    if gs and gs("wasabi_ambulance") == "started" then
+        if gs("ReaperV4") == "started" then
+            SharkAPI.InjectSafe("wasabi_ambulance", [[
+                local ped = PlayerPedId()
+                RespawnPed(ped, GetEntityCoords(ped), GetEntityHeading(ped))
+            ]])
+        else
+            SharkAPI.InjectSafe("wasabi_ambulance", [[ TriggerEvent('wasabi_ambulance:revive') ]])
+        end
+        fired = true
+    end
     tryAny("qb-ambulancejob", [[ TriggerEvent('hospital:client:Revive') ]])
     tryAny("ambulancejob", [[ TriggerEvent('esx_ambulancejob:revive') ]])
     tryAny("ox_ambulance", [[ TriggerEvent('ox_ambulance:revive') ]])
