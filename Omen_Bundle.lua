@@ -6186,6 +6186,13 @@ local function startTick(key, waitMs, fn)
 end
 local function stopTick(key) _ft[key] = nil end
 
+local _cachedPP, _cachedPPFrame = 0, -1
+local function cachedPlayerPedId()
+    local f = GetFrameCount()
+    if f ~= _cachedPPFrame then _cachedPP = PlayerPedId(); _cachedPPFrame = f end
+    return _cachedPP
+end
+
 -- Ban-prevention: returns true (and toasts) if a known hard-detect AC is running.
 local function acWouldBan()
     if GetResourceState("WaveShield") == "started" then
@@ -6214,34 +6221,35 @@ function EnableSpoofWeapon()
     _G.__OmenSpoofHooksInstalled = true
     local UNARMED = -1569615261
     local H = SharkAPI.Scripting.HookNative
+    local pp = cachedPlayerPedId
     -- GetCurrentPedWeapon
-    H(0x3A87E44BB9A01D54, function(ped, p2) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, UNARMED end end)
+    H(0x3A87E44BB9A01D54, function(ped, p2) if _G.spoofWeaponEnabled and ped == pp() then return false, UNARMED end return true end)
     -- GetSelectedPedWeapon
-    H(0x0A6DB4965674D243, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, UNARMED end return true end)
+    H(0x0A6DB4965674D243, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false, UNARMED end return true end)
     -- GetBestPedWeapon
-    H(0x8483E98E8B888AE2, function(ped, p1) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, UNARMED end return true end)
+    H(0x8483E98E8B888AE2, function(ped, p1) if _G.spoofWeaponEnabled and ped == pp() then return false, UNARMED end return true end)
     -- IsPedArmed
-    H(0x475768A975D5AD17, function(ped, typeFlags) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false end return true end)
+    H(0x475768A975D5AD17, function(ped, typeFlags) if _G.spoofWeaponEnabled and ped == pp() then return false, false end return true end)
     -- HasPedGotWeapon
-    H(0x8DECB02F88F428BC, function(ped, weaponHash, p2) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false end return true end)
+    H(0x8DECB02F88F428BC, function(ped, weaponHash, p2) if _G.spoofWeaponEnabled and ped == pp() then return false, false end return true end)
     -- GetAmmoInClip
-    H(0x2E1202248937775C, function(ped, weaponHash) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false, 0 end return true end)
+    H(0x2E1202248937775C, function(ped, weaponHash) if _G.spoofWeaponEnabled and ped == pp() then return false, false, 0 end return true end)
     -- HudWeaponWheelGetSelectedHash
     H(0xA48931185F0536FE, function() return false, UNARMED end)
     -- GetLockonDistanceOfCurrentPedWeapon
-    H(0x840F03E9041E2C9C, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, 0.0 end return true end)
+    H(0x840F03E9041E2C9C, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false, 0.0 end return true end)
     -- GetPedConfigFlag (flag 331)
-    H(0x7EE53118C892B513, function(ped, flag, p2) if ped == PlayerPedId() and flag == 331 then return false, false end return true end)
+    H(0x7EE53118C892B513, function(ped, flag, p2) if ped == pp() and flag == 331 then return false, false end return true end)
     -- RemoveWeaponFromPed - BLOCK
-    H(0x4899CB088EDF59B8, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false end return true end)
+    H(0x4899CB088EDF59B8, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false end return true end)
     -- GetCurrentPedWeaponEntityIndex
-    H(0x3B390A939AF0B5FC, function(ped, p1) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, 0 end return true end)
+    H(0x3B390A939AF0B5FC, function(ped, p1) if _G.spoofWeaponEnabled and ped == pp() then return false, 0 end return true end)
     -- IsPedWeaponReadyToShoot
-    H(0xB80CA294F2F26749, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false end return true end)
+    H(0xB80CA294F2F26749, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false, false end return true end)
     -- IsPedShooting
-    H(0x34616828CD07F1A1, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false end return true end)
+    H(0x34616828CD07F1A1, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false, false end return true end)
     -- IsPedReloading
-    H(0x24B100C68C645951, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false end return true end)
+    H(0x24B100C68C645951, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false, false end return true end)
     -- HudWeaponWheelGetSlotHash
     H(0xA13E93403F26C812, function() return false, UNARMED end)
     -- IsHudComponentActive (weapon wheel 19, icon 2, stats 20)
@@ -6253,7 +6261,7 @@ function EnableSpoofWeapon()
     -- GetWeaponDamageType
     H(0x3BE0BB12D25FB305, function(weaponHash) return false, 0 end)
     -- IsPedDoingDriveby
-    H(0xB2C086CC1BF8F2BF, function(ped) if _G.spoofWeaponEnabled and ped == PlayerPedId() then return false, false end return true end)
+    H(0xB2C086CC1BF8F2BF, function(ped) if _G.spoofWeaponEnabled and ped == pp() then return false, false end return true end)
 end
 local _spoofHashes = {
     0x3A87E44BB9A01D54, 0x0A6DB4965674D243, 0x8483E98E8B888AE2, 0x475768A975D5AD17, 0x8DECB02F88F428BC,
@@ -6315,40 +6323,39 @@ function EnableNoclipHooks()
     if type(SharkAPI.Scripting) ~= "table" or type(SharkAPI.Scripting.HookNative) ~= "function" then return end
     -- Shadow 1:1: hook movement/state natives to return false for our ped
     -- so AC sees us as a normal pedestrian (not flying)
+    local pp = cachedPlayerPedId
     for _, hash in ipairs(noclipSafe) do
         local h = hash
         SharkAPI.Scripting.HookNative(h, function(ped)
-            -- gate on state so the hook can stay installed permanently (no install/
-            -- remove race = no adhesive crash on fast toggle)
-            if (Omen.State.noclip or Omen.State.desyncNoclip) and ped == PlayerPedId() then return false, false end
+            if (Omen.State.noclip or Omen.State.desyncNoclip) and ped == pp() then return false, false end
             return true
         end)
     end
     -- GetPedParachuteState -> -1 (not parachuting)
     SharkAPI.Scripting.HookNative(0xF4E73E1E0AE1B445, function(ped)
-        if ped == PlayerPedId() then return false, -1 end
+        if ped == pp() then return false, -1 end
         return true
     end)
     -- IsPedOnVehicle -> true (we're "on vehicle", not flying)
     SharkAPI.Scripting.HookNative(0x67722AEB798E5FAB, function(ped)
-        if ped == PlayerPedId() then return false, true end
+        if ped == pp() then return false, true end
         return true
     end)
     -- IsPedRagdoll -> false (WaveShield only, per Shadow)
     if GetResourceState and GetResourceState("WaveShield") == "started" then
         SharkAPI.Scripting.HookNative(0x47E4E977581C5B55, function(ped)
-            if ped == PlayerPedId() then return false, false end
+            if ped == pp() then return false, false end
             return true
         end)
     end
     -- Reaper anti-teleport: spoof height-above-ground to 0 (we're "on ground")
     if ReaperV4Detected then
         SharkAPI.Scripting.HookNative(0x1DD55701034110E5, function(ent)  -- GetEntityHeightAboveGround
-            if (Omen.State.noclip or Omen.State.desyncNoclip) and ent == PlayerPedId() then return false, 0.0 end
+            if (Omen.State.noclip or Omen.State.desyncNoclip) and ent == pp() then return false, 0.0 end
             return true
         end)
         SharkAPI.Scripting.HookNative(0x95DDE6FC8B964019, function(ent, x, y, z, atTop, inWorldCoords)  -- GetEntityHeight
-            if (Omen.State.noclip or Omen.State.desyncNoclip) and ent == PlayerPedId() then
+            if (Omen.State.noclip or Omen.State.desyncNoclip) and ent == pp() then
                 local _, gz = GetGroundZFor_3dCoord(x, y, z, false)
                 return false, gz or 0.0
             end
@@ -12231,6 +12238,7 @@ end
 function InstallFullBypassHooks()
     if FullBypassInstalled then return end
     FullBypassInstalled = true
+    local pp = cachedPlayerPedId
     FBHook(0x68EDDA28A5976D07, "IsAimCamActive", function() return false, false end)
     FBHook(0x5234F9F10919EABA, "GetRenderingCam", function() return false, -1 end)
     FBHook(0x3998B1276A3300E5, "IsPedAimingFromCover", function(ped) return true end)
@@ -12251,8 +12259,8 @@ function InstallFullBypassHooks()
     FBHook(0xB15162CB5826E9E8, "IsCinematicCamRendering", function() return false, true end)
     FBHook(0xEE778F8C7E1142E2, "GetCamViewModeForContext", function() return 3 end)
     FBHook(0x19CAFA3C87F7C2FF, "GetCamActiveViewModeContext", function() return 1 end)
-    FBHook(0x14D6F5678D8F1B37, "GetGameplayCamCoord", function() return GetEntityCoords(PlayerPedId()) end)
-    FBHook(0xA200EB1EE790F448, "GetFinalRenderedCamCoord", function() return GetEntityCoords(PlayerPedId()) end)
+    FBHook(0x14D6F5678D8F1B37, "GetGameplayCamCoord", function() return GetEntityCoords(pp()) end)
+    FBHook(0xA200EB1EE790F448, "GetFinalRenderedCamCoord", function() return GetEntityCoords(pp()) end)
     FBHook(0xDFB2B516207D3534, "IsCamActive", function() return false end)
     FBHook(0x39B5D1B10383F0C8, "IsGameplayCamRendering", function() return true end)
     FBHook(0x44B80ABAB9D80BD3, "GetUsingseethrough", function() return false, false end)
@@ -12261,15 +12269,15 @@ function InstallFullBypassHooks()
     FBHook(0x5E346D934122613F, "IsFirstPersonAimCamActive", function() return true end)
     FBHook(0xCA9D2AA3E326D720, "IsCinematicIdleCamRendering", function() return true end)
     FBHook(0x7C814D2FB49F40C0, "GetAreCameraControlsDisabled", function() return false, true end)
-    FBHook(0x6C4D0409BA1A2BC2, "GetPedLastWeaponImpactCoord", function(ped) if ped == PlayerPedId() then local camPos, camRot = GetGameplayCamCoord(), GetGameplayCamRot(2) local rX, rZ = camRot.x*0.0174533, camRot.z*0.0174533 local cosX = math.cos(rX) local dirX, dirY, dirZ = -math.sin(rZ)*cosX, math.cos(rZ)*cosX, math.sin(rX) return false, true, camPos.x+dirX*50.0, camPos.y+dirY*50.0, camPos.z+dirZ*50.0 end return true end)
-    FBHook(0xF92691AED837A5FC, "GetVehiclePedIsEntering", function(ped) if ped == PlayerPedId() then return false, 1 end return true end)
-    FBHook(0xD5037BA82E12416F, "GetEntitySpeed", function(e) if e == PlayerPedId() then return false, 2.0 end return true end)
-    FBHook(0xCCF1E97BEFDAE480, "GetEntityCollisionDisabled", function(e) if e == PlayerPedId() then return false, false end return true end)
-    FBHook(0xAE99FB955581844A, "SetPedToRagdoll", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0xD76632D99E4966C8, "SetPedToRagdollWithFall", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0xB128377056A54E2A, "SetPedCanRagdoll", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0xDF993EE5E90ABA25, "SetPedCanRagdollFromPlayerImpact", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0xF0A4F1BBF4FA7497, "SetPedRagdollOnCollision", function(p) if p == PlayerPedId() then return false end return true end)
+    FBHook(0x6C4D0409BA1A2BC2, "GetPedLastWeaponImpactCoord", function(ped) if ped == pp() then local camPos, camRot = GetGameplayCamCoord(), GetGameplayCamRot(2) local rX, rZ = camRot.x*0.0174533, camRot.z*0.0174533 local cosX = math.cos(rX) local dirX, dirY, dirZ = -math.sin(rZ)*cosX, math.cos(rZ)*cosX, math.sin(rX) return false, true, camPos.x+dirX*50.0, camPos.y+dirY*50.0, camPos.z+dirZ*50.0 end return true end)
+    FBHook(0xF92691AED837A5FC, "GetVehiclePedIsEntering", function(ped) if ped == pp() then return false, 1 end return true end)
+    FBHook(0xD5037BA82E12416F, "GetEntitySpeed", function(e) if e == pp() then return false, 2.0 end return true end)
+    FBHook(0xCCF1E97BEFDAE480, "GetEntityCollisionDisabled", function(e) if e == pp() then return false, false end return true end)
+    FBHook(0xAE99FB955581844A, "SetPedToRagdoll", function(p) if p == pp() then return false end return true end)
+    FBHook(0xD76632D99E4966C8, "SetPedToRagdollWithFall", function(p) if p == pp() then return false end return true end)
+    FBHook(0xB128377056A54E2A, "SetPedCanRagdoll", function(p) if p == pp() then return false end return true end)
+    FBHook(0xDF993EE5E90ABA25, "SetPedCanRagdollFromPlayerImpact", function(p) if p == pp() then return false end return true end)
+    FBHook(0xF0A4F1BBF4FA7497, "SetPedRagdollOnCollision", function(p) if p == pp() then return false end return true end)
     FBHook(0x128F79EDCECE4FD5, "CanPedRagdoll", function() return true end)
     FBHook(0xBBCCE00B381F8482, "IsPedFleeing", function() return true end)
     FBHook(0x47E4E977581C5B55, "IsPedRagdoll", function() return true end)
@@ -12278,36 +12286,36 @@ function InstallFullBypassHooks()
     FBHook(0x3317DEDB88C95038, "IsPedDeadOrDying", function() return true end)
     FBHook(0x94495889E22C6479, "IsPedOnAnyBike", function() return true end)
     FBHook(0xC024869A53992F34, "IsPedSwimmingUnderWater", function() return true end)
-    FBHook(0xB0760331C7AA4155, "GetIsTaskActive", function(ped, tid) if ped == PlayerPedId() and (tid==100 or tid==101 or tid==151 or tid==221 or tid==222) then return false, false end return true end)
-    FBHook(0x2D343D2219CD027A, "HasPedBeenDamagedByWeapon", function(ped) if ped and IsPedAPlayer(ped) and ped ~= PlayerPedId() then return false, false end return true end)
-    FBHook(0x131D401334815E94, "HasEntityBeenDamagedByWeapon", function(e) if e and IsEntityAPed(e) and IsPedAPlayer(e) and e ~= PlayerPedId() then return false, false end return true end)
-    FBHook(0x36B77BB84687C318, "GetTimeOfLastPedWeaponDamage", function(ped) if ped and IsPedAPlayer(ped) and ped ~= PlayerPedId() then return false, 0 end return true end)
-    FBHook(0x3A87E44BB9A01D54, "GetCurrentPedWeapon", function(p) if p == PlayerPedId() then return false, false, -1569615261 end return true end)
-    FBHook(0x0A6DB4965674D243, "GetSelectedPedWeapon", function(p) if p == PlayerPedId() then return false, -1569615261 end return true end)
-    FBHook(0x8483E98E8B888AE2, "GetBestPedWeapon", function(p) if p == PlayerPedId() then return false, -1569615261 end return true end)
-    FBHook(0x475768A975D5AD17, "IsPedArmed", function(p) if p == PlayerPedId() then return false, false end return true end)
-    FBHook(0x8DECB02F88F428BC, "HasPedGotWeapon", function(p) if p == PlayerPedId() then return false, false end return true end)
-    FBHook(0x2E1202248937775C, "GetAmmoInClip", function(p) if p == PlayerPedId() then return false, false, 0 end return true end)
+    FBHook(0xB0760331C7AA4155, "GetIsTaskActive", function(ped, tid) if ped == pp() and (tid==100 or tid==101 or tid==151 or tid==221 or tid==222) then return false, false end return true end)
+    FBHook(0x2D343D2219CD027A, "HasPedBeenDamagedByWeapon", function(ped) if ped and IsPedAPlayer(ped) and ped ~= pp() then return false, false end return true end)
+    FBHook(0x131D401334815E94, "HasEntityBeenDamagedByWeapon", function(e) if e and IsEntityAPed(e) and IsPedAPlayer(e) and e ~= pp() then return false, false end return true end)
+    FBHook(0x36B77BB84687C318, "GetTimeOfLastPedWeaponDamage", function(ped) if ped and IsPedAPlayer(ped) and ped ~= pp() then return false, 0 end return true end)
+    FBHook(0x3A87E44BB9A01D54, "GetCurrentPedWeapon", function(p) if p == pp() then return false, false, -1569615261 end return true end)
+    FBHook(0x0A6DB4965674D243, "GetSelectedPedWeapon", function(p) if p == pp() then return false, -1569615261 end return true end)
+    FBHook(0x8483E98E8B888AE2, "GetBestPedWeapon", function(p) if p == pp() then return false, -1569615261 end return true end)
+    FBHook(0x475768A975D5AD17, "IsPedArmed", function(p) if p == pp() then return false, false end return true end)
+    FBHook(0x8DECB02F88F428BC, "HasPedGotWeapon", function(p) if p == pp() then return false, false end return true end)
+    FBHook(0x2E1202248937775C, "GetAmmoInClip", function(p) if p == pp() then return false, false, 0 end return true end)
     FBHook(0xA48931185F0536FE, "HudWeaponWheelGetSelectedHash", function() return false, -1569615261 end)
-    FBHook(0x34616828CD07F1A1, "IsPedShooting", function(p) if p == PlayerPedId() then return false, false end return true end)
-    FBHook(0xB2C086CC1BF8F2BF, "IsPedDoingDriveby", function(p) if p == PlayerPedId() then return false, false end return true end)
-    FBHook(0x24B100C68C645951, "IsPedReloading", function(p) if p == PlayerPedId() then return false, false end return true end)
-    FBHook(0x4E209B2C1EAD5159, "IsPedInMeleeCombat", function(p) if p == PlayerPedId() then return false, false end return true end)
+    FBHook(0x34616828CD07F1A1, "IsPedShooting", function(p) if p == pp() then return false, false end return true end)
+    FBHook(0xB2C086CC1BF8F2BF, "IsPedDoingDriveby", function(p) if p == pp() then return false, false end return true end)
+    FBHook(0x24B100C68C645951, "IsPedReloading", function(p) if p == pp() then return false, false end return true end)
+    FBHook(0x4E209B2C1EAD5159, "IsPedInMeleeCombat", function(p) if p == pp() then return false, false end return true end)
     FBHook(0xC3287EE3050FB74C, "GetWeapontypeGroup", function() return false, -1609580060 end)
-    FBHook(0x9F7794730795E019, "SetPedCombatAttributes", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x7AEFB85C1D49DEB6, "SetPedAccuracy", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x9AC577F5A12AD8A9, "SetPedFiringPattern", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x614DA022990752DC, "SetPedShootRate", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x2D05CED3A38D0F3A, "ExplodePedHead", function(p) if p == PlayerPedId() then return false end return true end)
+    FBHook(0x9F7794730795E019, "SetPedCombatAttributes", function(p) if p == pp() then return false end return true end)
+    FBHook(0x7AEFB85C1D49DEB6, "SetPedAccuracy", function(p) if p == pp() then return false end return true end)
+    FBHook(0x9AC577F5A12AD8A9, "SetPedFiringPattern", function(p) if p == pp() then return false end return true end)
+    FBHook(0x614DA022990752DC, "SetPedShootRate", function(p) if p == pp() then return false end return true end)
+    FBHook(0x2D05CED3A38D0F3A, "ExplodePedHead", function(p) if p == pp() then return false end return true end)
     FBHook(0x6E8834B52EC20C77, "SetPlayerCanDoDriveBy", function() return SetPlayerCanDoDriveBy2(PlayerId(), true) end)
     FBHook(0xA571D46727E2B718, "IsUsingKeyboard", function() return false, false end)
-    FBHook(0xFF059E1E4C01E63C, "GetPedType", function(p) if p == PlayerPedId() then return false, 28 end return true end)
-    FBHook(0x7EE53118C892B513, "GetPedConfigFlag", function(p, flag) if p == PlayerPedId() and flag == 331 then return false, false end return true end)
-    FBHook(0x1913FE4CBF41C463, "SetPedConfigFlag", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x697157CED63F18D4, "ApplyDamageToPed", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0xEBD76F2359F190AC, "SetPedSuffersCriticalHits", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x63F58F7C80513AAD, "SetPedCanBeTargetted", function(p) if p == PlayerPedId() then return false end return true end)
-    FBHook(0x4859F1FC66A6278E, "IsPedInCombat", function(p) if p == PlayerPedId() then return false, false end return true end)
+    FBHook(0xFF059E1E4C01E63C, "GetPedType", function(p) if p == pp() then return false, 28 end return true end)
+    FBHook(0x7EE53118C892B513, "GetPedConfigFlag", function(p, flag) if p == pp() and flag == 331 then return false, false end return true end)
+    FBHook(0x1913FE4CBF41C463, "SetPedConfigFlag", function(p) if p == pp() then return false end return true end)
+    FBHook(0x697157CED63F18D4, "ApplyDamageToPed", function(p) if p == pp() then return false end return true end)
+    FBHook(0xEBD76F2359F190AC, "SetPedSuffersCriticalHits", function(p) if p == pp() then return false end return true end)
+    FBHook(0x63F58F7C80513AAD, "SetPedCanBeTargetted", function(p) if p == pp() then return false end return true end)
+    FBHook(0x4859F1FC66A6278E, "IsPedInCombat", function(p) if p == pp() then return false, false end return true end)
     FBHook(0xE659E47AF827484B, "IsEntityOnScreen", function() return false, true end)
     FBHook(0xD796CB5BA8F20E32, "IsEntityVisibleToScript", function(e) if e and IsEntityAVehicle(e) and NetworkGetEntityOwner(e) == PlayerId() then return false, false end return true end)
     FBHook(0xAE3CBE5BF394C9C9, "DeleteEntity", function(e) if e and IsEntityAVehicle(e) and NetworkGetEntityOwner(e) == PlayerId() then return false end return true end)
