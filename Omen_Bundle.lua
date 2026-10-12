@@ -2670,6 +2670,7 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                     { type:"toggle", id:"dead_check",      name:"Skip Dead",      desc:"Ignore downed targets",        icon:"heart" },
                 ]},
                 { title: "Target", col:"b", items: [
+                    { type:"seg",    id:"aim_bone",     options:["Head","Neck","Chest","Pelvis"] },
                     { type:"toggle", id:"target_peds",  name:"Target Peds",   desc:"Include NPCs",              icon:"users" },
                     { type:"toggle", id:"use_friends",  name:"Ignore Friends", desc:"Skip your friends list",   icon:"heart" },
                     { type:"slider", id:"max_distance", label:"Max Distance", value:250, min:10, max:1000 },
@@ -7869,7 +7870,7 @@ reg("aim_fov",      { slide = function(v) State.__aim.fov      = v end })
 reg("aim_smooth",   { slide = function(v) State.__aim.smooth   = v end })
 reg("aim_distance", { slide = function(v) State.__aim.distance = v end })
 reg("aim_delay",    { slide = function(v) State.__aim.delay    = v end })
-reg("aim_bone",     { dropdown = function(v) State.__aim.bone = v or "Head" end })
+reg("aim_bone",     { seg = function(v) State.__aim.bone = v or "Head" end })
 reg("aim_players",  { toggle_on = function() State.__aim.players = true  end, toggle_off = function() State.__aim.players = false end })
 reg("aim_peds",     { toggle_on = function() State.__aim.peds    = true  end, toggle_off = function() State.__aim.peds    = false end })
 reg("aim_friends",  { toggle_on = function() State.__aim.ignoreFriends = true end, toggle_off = function() State.__aim.ignoreFriends = false end })
@@ -7924,6 +7925,7 @@ reg("aimbot", {
             local friends    = State._friends or {}
             local targetPeds = State.target_peds
             local visCheck   = State.invisible_check
+            local boneHash   = BONES[State.__aim and State.__aim.bone or "Head"] or 31086
             local pp         = PlayerPedId()
             local cam        = GetGameplayCamCoord()
             local rot        = GetGameplayCamRot(2)
@@ -7940,7 +7942,7 @@ reg("aimbot", {
                         local tp = GetPlayerPed(pid)
                         local visOk = true
                         if not rage and visCheck and tp ~= 0 and DoesEntityExist(tp) then
-                            local hh = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local hh = GetPedBoneCoords(tp, boneHash, 0.0, 0.0, 0.0)
                             local ray = StartShapeTestRay(cam.x, cam.y, cam.z, hh.x, hh.y, hh.z, 1 + 16, tp, 7)
                             local _, hit, _, _, hitEnt = GetShapeTestResult(ray)
                             if hit == 1 and hitEnt ~= tp then visOk = false end
@@ -7948,7 +7950,7 @@ reg("aimbot", {
                         if tp ~= 0 and DoesEntityExist(tp) and (not deadCheck or not IsEntityDead(tp))
                            and (rage or not invCheck or IsEntityVisible(tp))
                            and visOk then
-                            local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local h = GetPedBoneCoords(tp, boneHash, 0.0, 0.0, 0.0)
                             local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
                             local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
                             if dist <= maxDist and dist > 0.0 then
@@ -7965,7 +7967,7 @@ reg("aimbot", {
                     for _, tp in ipairs(GetGamePool("CPed") or {}) do
                         local pedVisOk = true
                         if not rage and visCheck and tp ~= 0 and DoesEntityExist(tp) then
-                            local hh = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local hh = GetPedBoneCoords(tp, boneHash, 0.0, 0.0, 0.0)
                             local ray = StartShapeTestRay(cam.x, cam.y, cam.z, hh.x, hh.y, hh.z, 1 + 16, tp, 7)
                             local _, hit, _, _, hitEnt = GetShapeTestResult(ray)
                             if hit == 1 and hitEnt ~= tp then pedVisOk = false end
@@ -7974,7 +7976,7 @@ reg("aimbot", {
                            and (not deadCheck or not IsEntityDead(tp))
                            and (rage or not invCheck or IsEntityVisible(tp))
                            and pedVisOk then
-                            local h = GetPedBoneCoords(tp, 31086, 0.0, 0.0, 0.0)
+                            local h = GetPedBoneCoords(tp, boneHash, 0.0, 0.0, 0.0)
                             local dx, dy, dz = h.x - cam.x, h.y - cam.y, h.z - cam.z
                             local dist = math.sqrt(dx*dx + dy*dy + dz*dz)
                             if dist <= maxDist and dist > 0.0 then

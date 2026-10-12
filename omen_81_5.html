@@ -2667,6 +2667,7 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
                     { type:"toggle", id:"dead_check",      name:"Skip Dead",      desc:"Ignore downed targets",        icon:"heart" },
                 ]},
                 { title: "Target", col:"b", items: [
+                    { type:"seg",    id:"aim_bone",     options:["Head","Neck","Chest","Pelvis"] },
                     { type:"toggle", id:"target_peds",  name:"Target Peds",   desc:"Include NPCs",              icon:"users" },
                     { type:"toggle", id:"use_friends",  name:"Ignore Friends", desc:"Skip your friends list",   icon:"heart" },
                     { type:"slider", id:"max_distance", label:"Max Distance", value:250, min:10, max:1000 },
