@@ -8915,39 +8915,30 @@ reg("pap", {
         -- sync the UI toggles for the features pap auto-enabled (prevents state desync)
         sendToUi({ action = "syncState", states = { infammo = State.infammo, noreload = State.noreload, norecoil = State.norecoil } })
         SetPlayerWeaponDamageModifier(PlayerId(), 3.0)
-        -- electric particle FX on both hands (Shadow ent_amb_elec_crackle)
-        SharkAPI.InjectSafe("any", [[
-            _G.__OmenPap = true
-            CreateThread(function()
-                local dict, fx = "core", "ent_amb_elec_crackle"
-                local rFx, lFx = 0, 0
-                while _G.__OmenPap do
-                    Wait(0)
-                    if not HasNamedPtfxAssetLoaded(dict) then RequestNamedPtfxAsset(dict)
-                    else
-                        local ped = PlayerPedId()
-                        if rFx == 0 or not DoesParticleFxLoopedExist(rFx) then
-                            UseParticleFxAssetNextCall(dict)
-                            rFx = StartParticleFxLoopedOnEntityBone(fx, ped, 0.0,0.0,0.0, 0.0,0.0,0.0, GetPedBoneIndex(ped, 28422), 1.2, false, false, false)
-                        end
-                        if lFx == 0 or not DoesParticleFxLoopedExist(lFx) then
-                            UseParticleFxAssetNextCall(dict)
-                            lFx = StartParticleFxLoopedOnEntityBone(fx, ped, 0.0,0.0,0.0, 0.0,0.0,0.0, GetPedBoneIndex(ped, 60309), 1.2, false, false, false)
-                        end
-                    end
+        local papRFx, papLFx = 0, 0
+        local papDict, papFx = "core", "ent_amb_elec_crackle"
+        startTick("pap_fx", 0, function()
+            if not HasNamedPtfxAssetLoaded(papDict) then RequestNamedPtfxAsset(papDict)
+            else
+                local ped = PlayerPedId()
+                if papRFx == 0 or not DoesParticleFxLoopedExist(papRFx) then
+                    UseParticleFxAssetNextCall(papDict)
+                    papRFx = StartParticleFxLoopedOnEntityBone(papFx, ped, 0.0,0.0,0.0, 0.0,0.0,0.0, GetPedBoneIndex(ped, 28422), 1.2, false, false, false)
                 end
-                if rFx ~= 0 and DoesParticleFxLoopedExist(rFx) then StopParticleFxLooped(rFx, 0) end
-                if lFx ~= 0 and DoesParticleFxLoopedExist(lFx) then StopParticleFxLooped(lFx, 0) end
-            end)
-        ]])
+                if papLFx == 0 or not DoesParticleFxLoopedExist(papLFx) then
+                    UseParticleFxAssetNextCall(papDict)
+                    papLFx = StartParticleFxLoopedOnEntityBone(papFx, ped, 0.0,0.0,0.0, 0.0,0.0,0.0, GetPedBoneIndex(ped, 60309), 1.2, false, false, false)
+                end
+            end
+        end)
         toast("success", "Weapons", "Pack-a-Punch on")
     end,
     toggle_off = function()
         State.__pap = false
         State.packapunch = false
         SetPlayerWeaponDamageModifier(PlayerId(), 1.0)
-        _G.__OmenPap = false
-        SharkAPI.InjectSafe("any", [[ _G.__OmenPap = false ]])
+        stopTick("pap_fx")
+        RemoveNamedPtfxAsset("core")
         -- turn off features we auto-enabled
         if _G.__PapOwnedInfammo and Omen.Features.infammo and Omen.Features.infammo.toggle_off then State.infammo=false; _G.__PapOwnedInfammo=nil; Omen.Features.infammo.toggle_off() end
         if _G.__PapOwnedNoreload and Omen.Features.noreload and Omen.Features.noreload.toggle_off then State.noreload=false; _G.__PapOwnedNoreload=nil; Omen.Features.noreload.toggle_off() end
@@ -9885,15 +9876,20 @@ local _hulkHolding = false
 local _hulkHoldCar = false
 local _hulkEnt = nil
 local _hulkEntType = nil
-local _hulkLastLabel = ""
-local function hulkExecJS(js)
-    if type(SharkAPI.ExecuteJS) == "function" and Omen.Dui then SharkAPI.ExecuteJS(Omen.Dui, js) end
+local _hulkLastState = ""
+local function hulkHud(carrying, targetName, targetType)
+    local key = (carrying and "c" or "n") .. (targetName or "") .. (targetType or "")
+    if key == _hulkLastState then return end
+    _hulkLastState = key
+    sendToUi({ action="applyHulkHud", on=true, carrying=carrying, targetName=targetName, targetType=targetType })
 end
-local function hulkLabel(name)
-    if name == _hulkLastLabel then return end
-    _hulkLastLabel = name
-    if name == "" then hulkExecJS("if(window.__omHulk)__omHulk(null)")
-    else hulkExecJS("if(window.__omHulk)__omHulk('" .. name:gsub("'", "\\'") .. "')") end
+local function hulkHide()
+    if _hulkLastState == "" then return end
+    _hulkLastState = ""
+    sendToUi({ action="applyHulkHud", on=false })
+end
+local function hulkPulse()
+    sendToUi({ action="hulkPulse" })
 end
 local function hulkDisplayName(entity)
     local t = GetEntityType(entity)
@@ -9933,7 +9929,7 @@ reg("hulkman", {
                 if tt == 2 or tt == 3 then
                     validTarget = true
                     _hulkEntType = tt
-                    hulkLabel(hulkDisplayName(entityHit))
+                    hulkHud(false, hulkDisplayName(entityHit), tt == 2 and "Vehicle" or "Object")
                     if tt == 2 then NetworkRequestControlOfEntity(entityHit) end
                 end
             end
@@ -9944,10 +9940,9 @@ reg("hulkman", {
                 if not IsEntityAttached(_hulkEnt) then
                     _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
                 end
-                if _hulkHoldCar then hulkLabel("Holding Vehicle")
-                else hulkLabel("Holding Object") end
+                hulkHud(true, _hulkHoldCar and "Vehicle" or "Object", nil)
             elseif not validTarget then
-                hulkLabel("")
+                hulkHud(false, nil, nil)
             end
             if _hulkHolding then
                 if _hulkHoldCar and not IsEntityPlayingAnim(ped, 'anim@mp_rollarcoaster', 'hands_up_idle_a_player_one', 3) then
@@ -9987,6 +9982,7 @@ reg("hulkman", {
                     local force = _hulkHoldCar and 40 or 65
                     ApplyForceToEntity(_hulkEnt, 1, dx*force, dy*force, dz*force, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
                     _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
+                    hulkPulse()
                 end
             end
         end)
@@ -10000,7 +9996,7 @@ reg("hulkman", {
             ClearPedTasks(PlayerPedId())
         end
         _hulkHolding = false; _hulkHoldCar = false; _hulkEnt = nil
-        hulkLabel("")
+        hulkHide()
         toast("info", "Misc", "Hulk Man OFF")
     end,
 })
@@ -10453,67 +10449,58 @@ reg("veh_boost1", { click = function()
     local dir = GetEntityForwardVector(veh)
     ApplyForceToEntity(veh, 1, dir.x * 30.0, dir.y * 30.0, dir.z * 5.0, 0.0, 0.0, 0.0, 0, false, true, true, false, true)
 end })
+local _doppelOrig = nil
 reg("doppleganger", {
     toggle_on = function()
         Omen.State.doppleganger = true
-        SharkAPI.InjectSafe("any", [[
-            _G.__doppelRunning = true
-            -- snapshot original appearance so toggle_off can restore it
-            if not _G.__doppelOrig then
-                local ped = PlayerPedId()
-                _G.__doppelOrig = { comp = {}, prop = {} }
-                for comp = 0, 11 do
-                    _G.__doppelOrig.comp[comp] = { d = GetPedDrawableVariation(ped, comp), t = GetPedTextureVariation(ped, comp), p = GetPedPaletteVariation(ped, comp) }
-                end
-                for prop = 0, 2 do
-                    _G.__doppelOrig.prop[prop] = { d = GetPedPropIndex(ped, prop), t = GetPedPropTextureIndex(ped, prop) }
+        if not _doppelOrig then
+            local ped = PlayerPedId()
+            _doppelOrig = { comp = {}, prop = {} }
+            for comp = 0, 11 do
+                _doppelOrig.comp[comp] = { d = GetPedDrawableVariation(ped, comp), t = GetPedTextureVariation(ped, comp), p = GetPedPaletteVariation(ped, comp) }
+            end
+            for prop = 0, 2 do
+                _doppelOrig.prop[prop] = { d = GetPedPropIndex(ped, prop), t = GetPedPropTextureIndex(ped, prop) }
+            end
+        end
+        startTick("doppleganger", 1000, function()
+            local ped = PlayerPedId()
+            local face = math.random(0, 45); local skin = math.random(0, 45)
+            SetPedHeadBlendData(ped, face, skin, 0, face, skin, 0, 1.0, 1.0, 0.0, false)
+            local hairMax = GetNumberOfPedDrawableVariations(ped, 2)
+            local hair = hairMax > 1 and math.random(0, hairMax-1) or 0
+            SetPedComponentVariation(ped, 2, hair, 0, 2)
+            SetPedHairColor(ped, math.random(0, 63), math.random(0, 63))
+            for _, comp in ipairs({4, 6, 11}) do
+                local maxD = GetNumberOfPedDrawableVariations(ped, comp)
+                if maxD > 1 then
+                    local draw = math.random(0, maxD-1)
+                    local maxT = GetNumberOfPedTextureVariations(ped, comp, draw)
+                    SetPedComponentVariation(ped, comp, draw, maxT > 0 and math.random(0, maxT-1) or 0, 2)
                 end
             end
-            CreateThread(function()
-                while _G.__doppelRunning do
-                    Wait(1000)
-                    local ped = PlayerPedId()
-                    local face = math.random(0, 45); local skin = math.random(0, 45)
-                    SetPedHeadBlendData(ped, face, skin, 0, face, skin, 0, 1.0, 1.0, 0.0, false)
-                    local hairMax = GetNumberOfPedDrawableVariations(ped, 2)
-                    local hair = hairMax > 1 and math.random(0, hairMax-1) or 0
-                    SetPedComponentVariation(ped, 2, hair, 0, 2)
-                    SetPedHairColor(ped, math.random(0, 63), math.random(0, 63))
-                    for _, comp in ipairs({4, 6, 11}) do
-                        local maxD = GetNumberOfPedDrawableVariations(ped, comp)
-                        if maxD > 1 then
-                            local draw = math.random(0, maxD-1)
-                            local maxT = GetNumberOfPedTextureVariations(ped, comp, draw)
-                            SetPedComponentVariation(ped, comp, draw, maxT > 0 and math.random(0, maxT-1) or 0, 2)
-                        end
-                    end
-                    local brows = GetNumHeadOverlayValues(2)
-                    SetPedHeadOverlay(ped, 2, brows > 1 and math.random(0, brows-1) or 0, 1.0)
-                    SetPedHeadOverlayColor(ped, 2, 1, math.random(0, 63), 0)
-                    ClearPedProp(ped, 0); ClearPedProp(ped, 1)
-                end
-            end)
-        ]])
+            local brows = GetNumHeadOverlayValues(2)
+            SetPedHeadOverlay(ped, 2, brows > 1 and math.random(0, brows-1) or 0, 1.0)
+            SetPedHeadOverlayColor(ped, 2, 1, math.random(0, 63), 0)
+            ClearPedProp(ped, 0); ClearPedProp(ped, 1)
+        end)
         toast("success", "Misc", "Doppelganger: ON")
     end,
     toggle_off = function()
         Omen.State.doppleganger = false
-        _G.__doppelRunning = false
-        SharkAPI.InjectSafe("any", [[
-            _G.__doppelRunning = false
-            if _G.__doppelOrig then
-                local ped = PlayerPedId()
-                for comp = 0, 11 do
-                    local o = _G.__doppelOrig.comp[comp]
-                    if o then SetPedComponentVariation(ped, comp, o.d, o.t, o.p) end
-                end
-                for prop = 0, 2 do
-                    local o = _G.__doppelOrig.prop[prop]
-                    if o and o.d >= 0 then SetPedPropIndex(ped, prop, o.d, o.t, true) else ClearPedProp(ped, prop) end
-                end
-                _G.__doppelOrig = nil
+        stopTick("doppleganger")
+        if _doppelOrig then
+            local ped = PlayerPedId()
+            for comp = 0, 11 do
+                local o = _doppelOrig.comp[comp]
+                if o then SetPedComponentVariation(ped, comp, o.d, o.t, o.p) end
             end
-        ]])
+            for prop = 0, 2 do
+                local o = _doppelOrig.prop[prop]
+                if o and o.d >= 0 then SetPedPropIndex(ped, prop, o.d, o.t, true) else ClearPedProp(ped, prop) end
+            end
+            _doppelOrig = nil
+        end
         toast("info", "Misc", "Doppelganger: OFF")
     end,
 })
