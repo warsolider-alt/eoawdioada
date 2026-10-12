@@ -7148,55 +7148,43 @@ reg("megaweapon", {
             end)
             toast("success", "Weapons", "Mega Weapon on")
         else
-            -- fallback: tracked oversized weapon-object clone that follows the held weapon
-            SharkAPI.InjectSafe("any", [[
-                _G.__OmenMegaWep = true
-                if not _G.__OmenMegaWepThread then
-                    _G.__OmenMegaWepThread = true
-                    CreateThread(function()
-                        local obj = 0
-                        local curHash = 0
-                        while _G.__OmenMegaWep do
-                            Wait(0)
-                            local p = PlayerPedId()
-                            local held = GetCurrentPedWeaponEntityIndex(p)
-                            local _, wh = GetCurrentPedWeapon(p, true)
-                            if held ~= 0 and DoesEntityExist(held) and wh ~= 0 and wh ~= GetHashKey("WEAPON_UNARMED") then
-                                if obj == 0 or not DoesEntityExist(obj) or wh ~= curHash then
-                                    if obj ~= 0 and DoesEntityExist(obj) then DeleteEntity(obj) end
-                                    local ip = GetEntityCoords(p)
-                                    obj = CreateWeaponObject(wh, 1, ip.x, ip.y, ip.z, false, 3.0, 0)
-                                    curHash = wh
-                                    if DoesEntityExist(obj) then
-                                        SetEntityAsMissionEntity(obj, true, true)
-                                        SetEntityCollision(obj, false, false)
-                                        SetEntityHasGravity(obj, false)
-                                    end
-                                end
-                                if obj ~= 0 and DoesEntityExist(obj) then
-                                    local pos = GetEntityCoords(held)
-                                    local rot = GetEntityRotation(held, 2)
-                                    SetEntityCoords(obj, pos.x, pos.y, pos.z, false, false, false, true)
-                                    SetEntityRotation(obj, rot.x, rot.y, rot.z, 2, true)
-                                end
-                            elseif obj ~= 0 and DoesEntityExist(obj) then
-                                DeleteEntity(obj); obj = 0; curHash = 0
-                            end
+            local mwObj = 0
+            local mwHash = 0
+            local unarmedH = GetHashKey("WEAPON_UNARMED")
+            startTick("megaweapon_fb", 0, function()
+                local p = PlayerPedId()
+                local held = GetCurrentPedWeaponEntityIndex(p)
+                local _, wh = GetCurrentPedWeapon(p, true)
+                if held ~= 0 and DoesEntityExist(held) and wh ~= 0 and wh ~= unarmedH then
+                    if mwObj == 0 or not DoesEntityExist(mwObj) or wh ~= mwHash then
+                        if mwObj ~= 0 and DoesEntityExist(mwObj) then DeleteEntity(mwObj) end
+                        local ip = GetEntityCoords(p)
+                        mwObj = CreateWeaponObject(wh, 1, ip.x, ip.y, ip.z, false, 3.0, 0)
+                        mwHash = wh
+                        if DoesEntityExist(mwObj) then
+                            SetEntityAsMissionEntity(mwObj, true, true)
+                            SetEntityCollision(mwObj, false, false)
+                            SetEntityHasGravity(mwObj, false)
                         end
-                        if obj ~= 0 and DoesEntityExist(obj) then DeleteEntity(obj) end
-                        _G.__OmenMegaWepThread = nil
-                    end)
+                    end
+                    if mwObj ~= 0 and DoesEntityExist(mwObj) then
+                        local pos = GetEntityCoords(held)
+                        local rot = GetEntityRotation(held, 2)
+                        SetEntityCoords(mwObj, pos.x, pos.y, pos.z, false, false, false, true)
+                        SetEntityRotation(mwObj, rot.x, rot.y, rot.z, 2, true)
+                    end
+                elseif mwObj ~= 0 and DoesEntityExist(mwObj) then
+                    DeleteEntity(mwObj); mwObj = 0; mwHash = 0
                 end
-            ]])
+            end)
             toast("success", "Weapons", "Mega Weapon on")
         end
     end,
     toggle_off = function()
         Omen.State.megaweapon = false
         stopTick("megaweapon")
+        stopTick("megaweapon_fb")
         if has("EditWeaponSize") then SK.EditWeaponSize(1.0) end
-        _G.__OmenMegaWep = false
-        SharkAPI.InjectSafe("any", [[ _G.__OmenMegaWep = false ]])
         if _G.__MegaWepSpoofedByUs and DisableSpoofWeapon then _G.__MegaWepSpoofedByUs = false; DisableSpoofWeapon() end
         toast("info", "Weapons", "Mega Weapon off")
     end,
@@ -8949,25 +8937,19 @@ reg("pap", {
         toast("info", "Weapons", "Pack-a-Punch off")
     end,
 })
+local _superPunchHash = GetHashKey("weapon_unarmed")
 reg("superpunch", {
     toggle_on = function()
         Omen.State.superpunch = true
-        SharkAPI.InjectSafe("any", [[
-            _G.__ShadowSuperPunch = true
-            local unarmedHash = GetHashKey("weapon_unarmed")
-            CreateThread(function()
-                while _G.__ShadowSuperPunch do
-                    SetWeaponDamageModifier(unarmedHash, 999.0)
-                    Wait(0)
-                end
-                SetWeaponDamageModifier(unarmedHash, 1.0)
-            end)
-        ]])
+        startTick("superpunch", 0, function()
+            SetWeaponDamageModifier(_superPunchHash, 999.0)
+        end)
         toast("success", "Omen", "Super Punch ON")
     end,
     toggle_off = function()
         Omen.State.superpunch = false
-        SharkAPI.InjectSafe("any", [[ _G.__ShadowSuperPunch = false ]])
+        stopTick("superpunch")
+        SetWeaponDamageModifier(_superPunchHash, 1.0)
         toast("info", "Omen", "Super Punch OFF")
     end,
 })
@@ -10290,90 +10272,73 @@ if type(_G.CreateThread) == "function" then
 end
 local __fakeLagMs = 200
 reg("fakeLagDelay", { slide = function(v) __fakeLagMs = math.max(40, math.min(2000, tonumber(v) or 200)) end })
+local _dsncObj = nil
+local _dsncFloor = nil
+local _dsncAnim = "anim@amb@casino@hangout@ped_male@stand@02a@base"
 reg("desyncNoclip", {
     toggle_on = function()
         Omen.State.desyncNoclip = true
-        -- Shadow 1:1 Desync NoClip: object-attach exploit. Attach ped to a hidden joint,
-        -- drive the joint's coords each frame (camera-relative WASD/Space/Ctrl/Shift).
-        -- Server still thinks you're parked at the origin = true desync. Noclip hooks
-        -- mask the AC coords-poll. Routed through inject so attach/coord ops are Reaper-safe.
         if EnableNoclipHooks then EnableNoclipHooks() end
-        SharkAPI.InjectSafe("any", [==[
-            if DysncNoClipActive == nil then DysncNoClipActive = false end
-            DysncNoClipActive = true
-            Citizen.CreateThread(function()
-                local ncped = nil
-                local floor = nil
-                if DysncNoClipActive then
-                    if not IsPedInAnyVehicle(PlayerPedId()) then
-                        local anim = "anim@amb@casino@hangout@ped_male@stand@02a@base"
-                        if not HasAnimDictLoaded(anim) then
-                            RequestAnimDict(anim)
-                            while not HasAnimDictLoaded(anim) do Wait(0) end
-                        end
-                        TaskPlayAnim(PlayerPedId(), anim, "base", 4.0, 4.0, -1, 11, 0.0)
-                        Wait(200)
-                        local c = GetEntityCoords(PlayerPedId())
-                        ncped = CreateObject(GetHashKey("p_cs_joint_01"), c.x, c.y, c.z, false, false, false)
-                        SetEntityVisible(ncped, false, 0)
-                        AttachEntityToEntity(PlayerPedId(), ncped, 11816, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
-                        floor = CreateObject(GetHashKey("prop_cons_ply01"), c.x, c.y, c.z, false, false, false)
-                        SetEntityVisible(floor, false, 0)
-                        AttachEntityToEntity(floor, PlayerPedId(), 11816, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
-                    end
-                end
-                local ped
-                while DysncNoClipActive do Wait(0)
-                    SetEntityVisible(floor, false, 0)
-                    SetEntityLocallyInvisible(PlayerPedId())
-                    if not IsEntityAttached(PlayerPedId()) then
-                        AttachEntityToEntity(PlayerPedId(), ncped, 11816, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
-                    end
-                    if not IsEntityAttached(floor) then
-                        AttachEntityToEntity(floor, PlayerPedId(), 11816, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
-                    end
-                    if IsPedInAnyVehicle(PlayerPedId()) then
-                        ped = GetVehiclePedIsIn(PlayerPedId(), false)
-                    else
-                        ped = ncped
-                    end
-                    local speed = 2.0
-                    local c = GetOffsetFromEntityInWorldCoords(ped, 0, 0, 0)
-                    local camRot = GetFinalRenderedCamRot(2)
-                    local function lr(rotation, left)
-                        local minval = left and 90.0 or 0.0
-                        return vector3(-math.sin(math.rad(rotation.z - minval)) * math.abs(math.cos(math.rad(rotation.x))),
-                                        math.cos(math.rad(rotation.z - minval)) * math.abs(math.cos(math.rad(rotation.x))),
-                                        math.sin(math.rad(rotation.x)))
-                    end
-                    local forward = lr(camRot, false)
-                    local left    = lr(camRot, true)
-                    if IsDisabledControlPressed(0, 21) then speed = speed * 3
-                    elseif IsDisabledControlPressed(0, 36) then c = vector3(c.x, c.y, c.z - speed) end
-                    if IsDisabledControlPressed(0, 150) then c = c + forward * speed end
-                    if IsDisabledControlPressed(0, 151) then c = c - forward * speed end
-                    if IsDisabledControlPressed(0, 147) then c = c - left    * speed end
-                    if IsDisabledControlPressed(0, 148) then c = c + left    * speed end
-                    if IsDisabledControlPressed(0, 154) then c = vector3(c.x, c.y, c.z - speed) end
-                    if IsDisabledControlPressed(0, 22)  then c = vector3(c.x, c.y, c.z + speed) end
-                    SetEntityRotation(ped, camRot, 2)
-                    SetEntityCoordsNoOffset(ped, c.x, c.y, c.z, 1, 1, 1)
-                end
-                DetachEntity(PlayerPedId())
-                if ncped then DeleteEntity(ncped) end
-                if floor then DeleteEntity(floor) end
-                Citizen.CreateThread(function()
-                    while IsEntityPlayingAnim(PlayerPedId(), "anim@amb@casino@hangout@ped_male@stand@02a@base", "base", 3) do Wait(0)
-                        StopAnimPlayback(PlayerPedId())
-                    end
-                end)
+        local ped = PlayerPedId()
+        if not IsPedInAnyVehicle(ped, false) then
+            if not HasAnimDictLoaded(_dsncAnim) then RequestAnimDict(_dsncAnim) end
+            CreateThread(function()
+                local dead = 0
+                while not HasAnimDictLoaded(_dsncAnim) and dead < 40 do Wait(50); dead = dead + 1 end
+                TaskPlayAnim(PlayerPedId(), _dsncAnim, "base", 4.0, 4.0, -1, 11, 0.0)
             end)
-        ]==])
+            Wait(200)
+            local c = GetEntityCoords(ped)
+            _dsncObj = CreateObject(GetHashKey("p_cs_joint_01"), c.x, c.y, c.z, false, false, false)
+            SetEntityVisible(_dsncObj, false, 0)
+            AttachEntityToEntity(ped, _dsncObj, 11816, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+            _dsncFloor = CreateObject(GetHashKey("prop_cons_ply01"), c.x, c.y, c.z, false, false, false)
+            SetEntityVisible(_dsncFloor, false, 0)
+            AttachEntityToEntity(_dsncFloor, ped, 11816, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+        end
+        local function dsncLR(rotation, left)
+            local minval = left and 90.0 or 0.0
+            return vector3(-math.sin(math.rad(rotation.z - minval)) * math.abs(math.cos(math.rad(rotation.x))),
+                            math.cos(math.rad(rotation.z - minval)) * math.abs(math.cos(math.rad(rotation.x))),
+                            math.sin(math.rad(rotation.x)))
+        end
+        startTick("desyncNoclip", 0, function()
+            local ped = PlayerPedId()
+            if _dsncFloor and DoesEntityExist(_dsncFloor) then SetEntityVisible(_dsncFloor, false, 0) end
+            SetEntityLocallyInvisible(ped)
+            if _dsncObj and DoesEntityExist(_dsncObj) and not IsEntityAttached(ped) then
+                AttachEntityToEntity(ped, _dsncObj, 11816, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+            end
+            if _dsncFloor and DoesEntityExist(_dsncFloor) and not IsEntityAttached(_dsncFloor) then
+                AttachEntityToEntity(_dsncFloor, ped, 11816, 0.0, 0.0, -2.0, 0.0, 0.0, 0.0, false, false, false, false, 2, true)
+            end
+            local driveEnt = IsPedInAnyVehicle(ped, false) and GetVehiclePedIsIn(ped, false) or _dsncObj
+            local speed = 2.0
+            local c = GetOffsetFromEntityInWorldCoords(driveEnt, 0, 0, 0)
+            local camRot = GetFinalRenderedCamRot(2)
+            local forward = dsncLR(camRot, false)
+            local left    = dsncLR(camRot, true)
+            if IsDisabledControlPressed(0, 21) then speed = speed * 3
+            elseif IsDisabledControlPressed(0, 36) then c = vector3(c.x, c.y, c.z - speed) end
+            if IsDisabledControlPressed(0, 150) then c = c + forward * speed end
+            if IsDisabledControlPressed(0, 151) then c = c - forward * speed end
+            if IsDisabledControlPressed(0, 147) then c = c - left    * speed end
+            if IsDisabledControlPressed(0, 148) then c = c + left    * speed end
+            if IsDisabledControlPressed(0, 154) then c = vector3(c.x, c.y, c.z - speed) end
+            if IsDisabledControlPressed(0, 22)  then c = vector3(c.x, c.y, c.z + speed) end
+            SetEntityRotation(driveEnt, camRot, 2)
+            SetEntityCoordsNoOffset(driveEnt, c.x, c.y, c.z, 1, 1, 1)
+        end)
     end,
     toggle_off = function()
         Omen.State.desyncNoclip = false
-        _G.DysncNoClipActive = false
-        SharkAPI.InjectSafe("any", [[ if DysncNoClipActive ~= nil then DysncNoClipActive = false end ]])
+        stopTick("desyncNoclip")
+        local ped = PlayerPedId()
+        DetachEntity(ped, true, true)
+        if _dsncObj and DoesEntityExist(_dsncObj) then DeleteEntity(_dsncObj) end
+        if _dsncFloor and DoesEntityExist(_dsncFloor) then DeleteEntity(_dsncFloor) end
+        _dsncObj = nil; _dsncFloor = nil
+        ClearPedTasks(ped)
         if DisableNoclipHooks then DisableNoclipHooks() end
     end,
 })
@@ -10906,34 +10871,22 @@ reg("invisible", {
     toggle_on  = function() SetEntityVisible(PlayerPedId(), false, false) end,
     toggle_off = function() SetEntityVisible(PlayerPedId(), true,  false) end,
 })
+local _noragdollLastHP = 0
 reg("noragdoll", {
     toggle_on = function()
         Omen.State.noragdoll = true
-        -- Shadow 1:1: run injected per-frame SetPedCanRagdoll + fall-damage HP restore
-        SharkAPI.InjectSafe("any", [[
-            _G.__OmenNoRagdoll = true
-            if not _G.__OmenNoRagdollThread then
-                _G.__OmenNoRagdollThread = true
-                CreateThread(function()
-                    local lastHP = GetEntityHealth(PlayerPedId())
-                    while _G.__OmenNoRagdoll do
-                        Wait(0)
-                        local ped = PlayerPedId()
-                        SetPedCanRagdoll(ped, false)
-                        local hp = GetEntityHealth(ped)
-                        -- restore HP lost to fall damage (big single-frame drop while falling)
-                        if IsPedFalling(ped) and hp < lastHP and (lastHP - hp) < 50 then SetEntityHealth(ped, lastHP) end
-                        lastHP = GetEntityHealth(ped)
-                    end
-                    _G.__OmenNoRagdollThread = nil
-                end)
-            end
-        ]])
+        _noragdollLastHP = GetEntityHealth(PlayerPedId())
+        startTick("noragdoll", 0, function()
+            local ped = PlayerPedId()
+            SetPedCanRagdoll(ped, false)
+            local hp = GetEntityHealth(ped)
+            if IsPedFalling(ped) and hp < _noragdollLastHP and (_noragdollLastHP - hp) < 50 then SetEntityHealth(ped, _noragdollLastHP) end
+            _noragdollLastHP = GetEntityHealth(ped)
+        end)
     end,
     toggle_off = function()
         Omen.State.noragdoll = false
-        _G.__OmenNoRagdoll = false
-        SharkAPI.InjectSafe("any", [[ _G.__OmenNoRagdoll = false ]])
+        stopTick("noragdoll")
         SetPedCanRagdoll(PlayerPedId(), true)
     end,
 })
