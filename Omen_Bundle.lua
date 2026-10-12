@@ -6842,9 +6842,18 @@ reg("remove_crutch", { click = function()
     toast("success", "Omen", "Wheelchair/Crutch removed")
 end })
 reg("revive", { click = function()
-    -- Try ALL known revive frameworks (not elseif) so it works regardless of which
-    -- ambulance/hospital script the server runs. Each only fires if that resource exists.
     local gs = GetResourceState
+    local reaperV4 = gs and gs("ReaperV4") == "started"
+    if reaperV4 then
+        local ped = PlayerPedId()
+        local c = GetEntityCoords(ped)
+        local h = GetEntityHeading(ped)
+        NetworkResurrectLocalPlayer(c.x, c.y, c.z, h, true, true)
+        ClearPedTasksImmediately(ped)
+        SetEntityHealth(ped, GetEntityMaxHealth(ped))
+        toast("success", "Omen", "Revive sent (native)")
+        return
+    end
     local fired = false
     local function try(res, code)
         if gs and gs(res) == "started" then SharkAPI.InjectSafe(res, code); fired = true end
@@ -6868,7 +6877,6 @@ reg("revive", { click = function()
         TriggerEvent('deathscreen:forceClose')
         if core and core.client then core.client:set('dead', false) end
     ]]))
-    -- generic events that many frameworks listen for (safe, no native resurrect)
     tryAny("hospital", [[ TriggerEvent('hospital:client:Revive') ]])
     if not fired then
         toast("info", "Omen", "No revive resource found")
