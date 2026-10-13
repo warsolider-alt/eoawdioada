@@ -6724,15 +6724,19 @@ reg("antibubble", {
 })
 reg("killgod", {
     toggle_on = function()
-        startTick("killgod", 300, function()
+        startTick("killgod", 0, function()
             local me = PlayerId()
             for _, pid in ipairs(GetActivePlayers() or {}) do
                 if pid ~= me then
                     local tped = GetPlayerPed(pid)
                     if tped ~= 0 and DoesEntityExist(tped) then
-                        SetEntityInvincible(tped, false)       -- reap foreign godmode
+                        NetworkRequestControlOfEntity(tped)
+                        SetEntityInvincible(tped, false)
                         SetEntityCanBeDamaged(tped, true)
-                        SetPedConfigFlag(tped, 423, false)     -- strip bubble (Shadow Kill Bubble)
+                        SetEntityProofs(tped, false, false, false, false, false, false, 0, false)
+                        SetPedCanRagdoll(tped, true)
+                        SetPedConfigFlag(tped, 423, false)
+                        ClearEntityLastDamageEntity(tped)
                     end
                 end
             end
@@ -7937,7 +7941,8 @@ reg("aimbot", {
             local fY         =  math.cos(yaw) * math.cos(pitch)
             local fZ         =  math.sin(pitch)
             local bestPos, bestAngle = nil, math.huge
-            if IsControlPressed(0, 25) or State.silentaim or rage then
+            local rageScan = rage and (IsControlPressed(0, 25) or IsPedShooting(pp) or IsControlPressed(0, 24))
+            if IsControlPressed(0, 25) or State.silentaim or rageScan then
                 for _, pid in ipairs(GetActivePlayers() or {}) do
                     local isFriend = useFriends and friends[GetPlayerServerId(pid)]
                     if pid ~= PlayerId() and not isFriend then
@@ -8000,7 +8005,8 @@ reg("aimbot", {
                     200, true, weapon, pp, true, true, 200.0
                 )
             end
-            if bestPos and (IsControlPressed(0, 25) or rage) then
+            local rageSnap = rage and (IsControlPressed(0, 25) or IsPedShooting(pp) or IsControlPressed(0, 24))
+            if bestPos and (IsControlPressed(0, 25) or rageSnap) then
                 local dx2, dy2, dz2 = bestPos.x - cam.x, bestPos.y - cam.y, bestPos.z - cam.z
                 local desiredYaw   = math.deg(atan2(-dx2, dy2))
                 local desiredPitch = math.deg(atan2(dz2, math.sqrt(dx2*dx2 + dy2*dy2)))
@@ -8249,18 +8255,21 @@ reg("chams_mode", {
 Omen.__fovRingTick = function()
     if not (State.fov_ring or State.fov_visible) then return end
     local sw, sh = screenSize()
-    local size    = (tonumber(State.fov_size) or 10) / 100 * math.min(sw, sh)
+    local radius  = (tonumber(State.fov_size) or 10) / 100 * math.min(sw, sh)
     local opacity = math.floor((tonumber(State.fov_opacity) or 50) * 2.55)
     if Draw and type(Draw.DrawCircle) == "function" then
-        Draw.DrawCircle(sw/2, sh/2, size, 255, 255, 255, opacity, false)
-    elseif type(DrawRect) == "function" then
-        -- Executor has no Drawing.DrawCircle: approximate the ring with native
-        -- DrawRect dots (normalized screen coords).
-        local seg = 72
+        Draw.DrawCircle(sw/2, sh/2, radius, 255, 255, 255, opacity, false)
+    else
+        local rX = radius / sw
+        local rY = radius / sh
+        local dotW = 2 / sw
+        local dotH = 2 / sh
+        local seg = 120
+        local pi2 = math.pi * 2
         for i = 0, seg - 1 do
-            local a = (i / seg) * math.pi * 2
-            DrawRect(0.5 + math.cos(a) * size / sw, 0.5 + math.sin(a) * size / sh,
-                     3 / sw, 3 / sh, 255, 255, 255, opacity)
+            local a = (i / seg) * pi2
+            DrawRect(0.5 + math.cos(a) * rX, 0.5 + math.sin(a) * rY,
+                     dotW, dotH, 255, 255, 255, opacity)
         end
     end
 end
@@ -10583,7 +10592,6 @@ alias("aimbotbone",     "aim_bone")
 alias("target_peds",    "aim_peds")
 alias("visible_check",  "aim_visible")
 alias("max_distance",   "aim_distance")
-alias("fov_check",      "fov_ring")
 alias("use_friends",    "aim_friends")
 -- Self aliases
 alias("autoHeal",       "autoheal")
