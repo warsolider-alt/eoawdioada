@@ -3053,16 +3053,17 @@ body.cursor-hover #cursor-ring { width: 22px; height: 22px; }
             document.body.removeChild(ta);
         } catch (e) {}
     }
+    window.__omenQ = __omenQ;
     function sendAction(payload) {
         payload._t = Date.now();
         payload._id = (++omenSeq);
-        // Queue the action instantly (cheap). Lua dedupes by _id.
         __omenQ.push(payload);
         if (__omenQ.length > 30) __omenQ = __omenQ.slice(-30);
-        // Debounce the actual clipboard write: coalesce rapid clicks into ONE copy op
-        // ~30ms later. Prevents the execCommand flood that crashes the game on fast clicks.
-        if (!__clipTimer) __clipTimer = setTimeout(__flushClipboard, 30);
-        // NUI fetch as an instant bonus path (single action; Lua dedupes by _id)
+        window.__omenQ = __omenQ;
+        // Flush clipboard synchronously inside gesture context (setTimeout loses it in CEF)
+        if (__clipTimer) { clearTimeout(__clipTimer); __clipTimer = null; }
+        __flushClipboard();
+        // NUI fetch as instant bonus path (single action; Lua dedupes by _id)
         const _res = window.__omenRes || window.__omenBridgeRes;
         if (_res) {
             try {
@@ -6099,7 +6100,9 @@ local function boot()
                             Omen.__jsLinkOk = true
                             duiSend({ action="pong", via="nui" })
                             if type(Omen.pushProfile) == "function" then Omen.pushProfile() end
+                            if type(Omen.pushCfgList) == "function" then Omen.pushCfgList() end
                         end
+                        routeAction(data)
                     end
                     if type(cb) == "function" then cb("ok") end
                 end)
